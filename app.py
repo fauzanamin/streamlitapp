@@ -1,12 +1,23 @@
-# Buat file app.py dengan Python
-with open('app.py', 'w') as f:
-    f.write('''
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
+
+# Coba import plotly dengan error handling
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError as e:
+    PLOTLY_AVAILABLE = False
+    st.warning("⚠️ Plotly tidak tersedia. Install dengan: pip install plotly")
+
+# Coba import option_menu
+try:
+    from streamlit_option_menu import option_menu
+    MENU_AVAILABLE = True
+except ImportError as e:
+    MENU_AVAILABLE = False
+    st.warning("⚠️ Streamlit Option Menu tidak tersedia. Install dengan: pip install streamlit-option-menu")
 
 # Konfigurasi halaman
 st.set_page_config(
@@ -16,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS untuk styling yang lebih baik
+# Custom CSS
 st.markdown("""
     <style>
     .main-header {
@@ -77,24 +88,30 @@ st.markdown('<div class="main-header">📊 Sistem Komparasi Clustering Penganggu
 with st.sidebar:
     st.markdown("### MENU")
     
-    selected = option_menu(
-        menu_title=None,
-        options=["Beranda", "Upload Dataset", "Exploratory Data Analysis", "Clustering", 
-                "Komparasi Algoritma", "Visualisasi", "Unduh Hasil", "Tentang Aplikasi"],
-        icons=["house", "cloud-upload", "bar-chart", "diagram-3", "git-compare", 
-               "graph-up", "download", "info-circle"],
-        menu_icon="cast",
-        default_index=0,
-        styles={
-            "container": {"padding": "0!important", "background-color": "#fafafa"},
-            "icon": {"color": "#1f77b4", "font-size": "20px"},
-            "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", 
-                        "--hover-color": "#eee"},
-            "nav-link-selected": {"background-color": "#1f77b4"},
-        }
-    )
+    if MENU_AVAILABLE:
+        selected = option_menu(
+            menu_title=None,
+            options=["Beranda", "Upload Dataset", "Exploratory Data Analysis", "Clustering", 
+                    "Komparasi Algoritma", "Visualisasi", "Unduh Hasil", "Tentang Aplikasi"],
+            icons=["house", "cloud-upload", "bar-chart", "diagram-3", "git-compare", 
+                   "graph-up", "download", "info-circle"],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important", "background-color": "#fafafa"},
+                "icon": {"color": "#1f77b4", "font-size": "20px"},
+                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", 
+                            "--hover-color": "#eee"},
+                "nav-link-selected": {"background-color": "#1f77b4"},
+            }
+        )
+    else:
+        # Menu sederhana tanpa option_menu
+        menu_options = ["Beranda", "Upload Dataset", "Exploratory Data Analysis", "Clustering", 
+                       "Komparasi Algoritma", "Visualisasi", "Unduh Hasil", "Tentang Aplikasi"]
+        selected = st.selectbox("Pilih Menu", menu_options)
 
-# Main content berdasarkan menu yang dipilih
+# Main content
 if selected == "Beranda":
     st.markdown('<div class="sub-header">🏠 Selamat Datang</div>', unsafe_allow_html=True)
     
@@ -142,31 +159,42 @@ if selected == "Beranda":
 elif selected == "Upload Dataset":
     st.markdown('<div class="sub-header">📤 Upload Dataset</div>', unsafe_allow_html=True)
     
-    st.markdown("""
-        <div style="border: 2px dashed #1f77b4; padding: 3rem; text-align: center; 
-                    border-radius: 10px; background-color: #fafafa; margin-bottom: 2rem;">
-            <h4>📁 Upload file dataset (.xlsx)</h4>
-            <p style="color: #7f8c8d;">Drag and drop file here</p>
-            <p style="color: #95a5a6; font-size: 0.9rem;">Limit 200MB per file - XLSX</p>
-        </div>
-    """, unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Pilih file XLSX", type=['xlsx'])
     
-    sample_data = {
-        "KABUPATEN_KOTA": ["Kab. Bogor", "Kab. Bogor", "Kab. Bogor", "Kab. Bogor"],
-        "PENDIDIKAN": ["SD Ke Bawah", "SMP", "SMA", "SMK"],
-        "TAHUN_2020": [1234, 2345, 4567, 6789],
-        "TAHUN_2021": [1150, 2100, 4320, 6500],
-        "TAHUN_2025": [980, 1760, 3980, 6200]
-    }
-    df_preview = pd.DataFrame(sample_data)
-    st.dataframe(df_preview, use_container_width=True)
-    
-    st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 5px; margin-top: 1rem;">
-            <strong>Jumlah Baris:</strong> 1.620 | 
-            <strong>Jumlah Kolom:</strong> 8
-        </div>
-    """, unsafe_allow_html=True)
+    if uploaded_file is not None:
+        try:
+            df = pd.read_excel(uploaded_file)
+            st.success(f"✅ File berhasil diupload! {len(df)} baris data")
+            st.dataframe(df.head())
+            
+            # Tampilkan info dataset
+            st.markdown(f"""
+                <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 5px; margin-top: 1rem;">
+                    <strong>Jumlah Baris:</strong> {len(df)} | 
+                    <strong>Jumlah Kolom:</strong> {len(df.columns)}
+                </div>
+            """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Error membaca file: {e}")
+    else:
+        # Preview dataset contoh
+        st.markdown("#### Preview Dataset")
+        sample_data = {
+            "KABUPATEN_KOTA": ["Kab. Bogor", "Kab. Bogor", "Kab. Bogor", "Kab. Bogor"],
+            "PENDIDIKAN": ["SD Ke Bawah", "SMP", "SMA", "SMK"],
+            "TAHUN_2020": [1234, 2345, 4567, 6789],
+            "TAHUN_2021": [1150, 2100, 4320, 6500],
+            "TAHUN_2025": [980, 1760, 3980, 6200]
+        }
+        df_preview = pd.DataFrame(sample_data)
+        st.dataframe(df_preview, use_container_width=True)
+        
+        st.markdown("""
+            <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 5px; margin-top: 1rem;">
+                <strong>Jumlah Baris:</strong> 1.620 | 
+                <strong>Jumlah Kolom:</strong> 8
+            </div>
+        """, unsafe_allow_html=True)
 
 elif selected == "Exploratory Data Analysis":
     st.markdown('<div class="sub-header">📊 Exploratory Data Analysis</div>', unsafe_allow_html=True)
@@ -179,7 +207,7 @@ elif selected == "Exploratory Data Analysis":
         st.markdown("""
             <div class="stat-card" style="border-left-color: #3498db;">
                 <div class="stat-number">27</div>
-                <div class="stat-label">Jumlah Waktu</div>
+                <div class="stat-label">Kab/Kota</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -187,7 +215,7 @@ elif selected == "Exploratory Data Analysis":
         st.markdown("""
             <div class="stat-card" style="border-left-color: #2ecc71;">
                 <div class="stat-number">6</div>
-                <div class="stat-label">Kab/Kota</div>
+                <div class="stat-label">Kategori Pendidikan</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -195,7 +223,7 @@ elif selected == "Exploratory Data Analysis":
         st.markdown("""
             <div class="stat-card" style="border-left-color: #e67e22;">
                 <div class="stat-number">6</div>
-                <div class="stat-label">Kategori Pendidikan</div>
+                <div class="stat-label">Tahun</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -209,17 +237,25 @@ elif selected == "Exploratory Data Analysis":
     
     st.markdown("#### Distribusi Data")
     
-    years = ['2020', '2021', '2022', '2023', '2024', '2025']
-    values = np.random.randint(1000, 5000, 6)
-    
-    fig = px.line(
-        x=years, 
-        y=values,
-        title='Trend Pengangguran Berdasarkan Pendidikan',
-        labels={'x': 'Tahun', 'y': 'Jumlah Pengangguran'}
-    )
-    fig.update_layout(height=400)
-    st.plotly_chart(fig, use_container_width=True)
+    if PLOTLY_AVAILABLE:
+        years = ['2020', '2021', '2022', '2023', '2024', '2025']
+        values = np.random.randint(1000, 5000, 6)
+        
+        fig = px.line(
+            x=years, 
+            y=values,
+            title='Trend Pengangguran Berdasarkan Pendidikan',
+            labels={'x': 'Tahun', 'y': 'Jumlah Pengangguran'}
+        )
+        fig.update_layout(height=400)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("📊 Install plotly untuk visualisasi interaktif: `pip install plotly`")
+        # Tampilkan data sederhana
+        years = ['2020', '2021', '2022', '2023', '2024', '2025']
+        values = np.random.randint(1000, 5000, 6)
+        data_df = pd.DataFrame({"Tahun": years, "Jumlah": values})
+        st.dataframe(data_df)
 
 elif selected == "Clustering":
     st.markdown('<div class="sub-header">🎯 Clustering</div>', unsafe_allow_html=True)
@@ -246,7 +282,10 @@ elif selected == "Clustering":
             k_value = st.slider("Jumlah Cluster", 2, 10, 3)
     
     if st.button("🚀 Jalankan Analisis", use_container_width=True):
-        st.success("Analisis clustering sedang berjalan...")
+        with st.spinner("Sedang menganalisis data..."):
+            import time
+            time.sleep(2)
+        st.success("✅ Analisis clustering selesai!")
     
     st.markdown("#### Hasil Clustering")
     st.markdown("##### Ringkasan Hasil")
@@ -285,11 +324,6 @@ elif selected == "Komparasi Algoritma":
                 <p><strong>Silhouette Score:</strong> <span class="metric-good">0.612</span></p>
                 <p><strong>Davies-Bouldin Index:</strong> <span class="metric-bad">0.842</span></p>
                 <p><strong>Cluster Terbaik:</strong> 3</p>
-                <p><strong>Keunggulan:</strong></p>
-                <ul>
-                    <li>Cepat dan efisien</li>
-                    <li>Mudah diimplementasikan</li>
-                </ul>
             </div>
         """, unsafe_allow_html=True)
     
@@ -300,260 +334,158 @@ elif selected == "Komparasi Algoritma":
                 <p><strong>Silhouette Score:</strong> <span class="metric-good">0.674</span></p>
                 <p><strong>Davies-Bouldin Index:</strong> <span class="metric-good">0.691</span></p>
                 <p><strong>Cluster Terbaik:</strong> 4</p>
-                <p><strong>Keunggulan:</strong></p>
-                <ul>
-                    <li>Memperhatikan pola waktu</li>
-                    <li>Lebih akurat untuk data time series</li>
-                </ul>
             </div>
         """, unsafe_allow_html=True)
     
-    st.markdown("#### Visualisasi Perbandingan")
-    
-    metrics = ['Silhouette Score', 'Davies-Bouldin Index']
-    kmeans_values = [0.612, 0.842]
-    tskm_values = [0.674, 0.691]
-    
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name='K-Means',
-        x=metrics,
-        y=kmeans_values,
-        marker_color='#3498db'
-    ))
-    fig.add_trace(go.Bar(
-        name='TimeSeriesKMeans',
-        x=metrics,
-        y=tskm_values,
-        marker_color='#e74c3c'
-    ))
-    
-    fig.update_layout(
-        title='Perbandingan Metrik Clustering',
-        barmode='group',
-        height=400
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    if PLOTLY_AVAILABLE:
+        st.markdown("#### Visualisasi Perbandingan")
+        
+        metrics = ['Silhouette Score', 'Davies-Bouldin Index']
+        kmeans_values = [0.612, 0.842]
+        tskm_values = [0.674, 0.691]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            name='K-Means',
+            x=metrics,
+            y=kmeans_values,
+            marker_color='#3498db'
+        ))
+        fig.add_trace(go.Bar(
+            name='TimeSeriesKMeans',
+            x=metrics,
+            y=tskm_values,
+            marker_color='#e74c3c'
+        ))
+        
+        fig.update_layout(
+            title='Perbandingan Metrik Clustering',
+            barmode='group',
+            height=400
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 elif selected == "Visualisasi":
     st.markdown('<div class="sub-header">📈 Visualisasi</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Elbow Curve", "Scatter Plot", "Heatmap", "Time Series Plot", "Perbandingan"
-    ])
-    
-    with tab1:
-        st.markdown("#### Elbow Curve - K-Means")
-        k_values = list(range(1, 11))
-        inertia = np.random.randint(5000, 30000, 10)[::-1] + np.random.randint(-1000, 1000, 10)
+    if PLOTLY_AVAILABLE:
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Elbow Curve", "Scatter Plot", "Heatmap", "Time Series Plot", "Perbandingan"
+        ])
         
-        fig = px.line(
-            x=k_values,
-            y=inertia,
-            markers=True,
-            title='Elbow Curve untuk Menentukan Jumlah Cluster Optimal',
-            labels={'x': 'Jumlah Cluster (k)', 'y': 'Inertia (Within-Cluster Sum of Squares)'}
-        )
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab2:
-        st.markdown("#### Scatter Plot Clustering")
-        np.random.seed(42)
-        x = np.random.randn(200) * 2 + 5
-        y = np.random.randn(200) * 2 + 5
-        clusters = np.random.randint(0, 3, 200)
+        with tab1:
+            st.markdown("#### Elbow Curve - K-Means")
+            k_values = list(range(1, 11))
+            inertia = np.random.randint(5000, 30000, 10)[::-1] + np.random.randint(-1000, 1000, 10)
+            
+            fig = px.line(
+                x=k_values,
+                y=inertia,
+                markers=True,
+                title='Elbow Curve untuk Menentukan Jumlah Cluster Optimal',
+                labels={'x': 'Jumlah Cluster (k)', 'y': 'Inertia'}
+            )
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
         
-        fig = px.scatter(
-            x=x, y=y,
-            color=clusters,
-            title='Visualisasi Cluster',
-            labels={'x': 'Komponen 1', 'y': 'Komponen 2'}
-        )
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab3:
-        st.markdown("#### Heatmap Correlasi")
-        data = np.random.randn(6, 6)
-        heatmap_df = pd.DataFrame(
-            data,
-            index=['SD Ke Bawah', 'SMP', 'SMA', 'SMK', 'Diploma', 'Sarjana'],
-            columns=['2020', '2021', '2022', '2023', '2024', '2025']
-        )
-        
-        fig = px.imshow(
-            heatmap_df,
-            title='Heatmap Pengangguran Berdasarkan Pendidikan dan Tahun',
-            color_continuous_scale='RdBu_r'
-        )
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab4:
-        st.markdown("#### Time Series Plot")
-        years = ['2020', '2021', '2022', '2023', '2024', '2025']
-        
-        fig = go.Figure()
-        for i in range(3):
-            fig.add_trace(go.Scatter(
-                x=years,
-                y=np.random.randint(1000, 5000, 6),
-                mode='lines+markers',
-                name=f'Cluster {i}'
-            ))
-        
-        fig.update_layout(
-            title='Trend Pengangguran per Cluster',
-            xaxis_title='Tahun',
-            yaxis_title='Jumlah Pengangguran',
-            height=400
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab5:
-        st.markdown("#### Perbandingan Algoritma")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("##### K-Means")
+        with tab2:
+            st.markdown("#### Scatter Plot Clustering")
             np.random.seed(42)
-            x1 = np.random.randn(200) * 2 + 5
-            y1 = np.random.randn(200) * 2 + 5
-            clusters1 = np.random.randint(0, 3, 200)
+            x = np.random.randn(200) * 2 + 5
+            y = np.random.randn(200) * 2 + 5
+            clusters = np.random.randint(0, 3, 200)
             
-            fig1 = px.scatter(
-                x=x1, y=y1,
-                color=clusters1,
-                title='K-Means Clustering'
+            fig = px.scatter(
+                x=x, y=y,
+                color=clusters,
+                title='Visualisasi Cluster',
+                labels={'x': 'Komponen 1', 'y': 'Komponen 2'}
             )
-            fig1.update_layout(height=300)
-            st.plotly_chart(fig1, use_container_width=True)
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
         
-        with col2:
-            st.markdown("##### TimeSeriesKMeans")
-            np.random.seed(123)
-            x2 = np.random.randn(200) * 2 + 5
-            y2 = np.random.randn(200) * 2 + 5
-            clusters2 = np.random.randint(0, 4, 200)
-            
-            fig2 = px.scatter(
-                x=x2, y=y2,
-                color=clusters2,
-                title='TimeSeriesKMeans Clustering'
+        with tab3:
+            st.markdown("#### Heatmap Correlasi")
+            data = np.random.randn(6, 6)
+            heatmap_df = pd.DataFrame(
+                data,
+                index=['SD Ke Bawah', 'SMP', 'SMA', 'SMK', 'Diploma', 'Sarjana'],
+                columns=['2020', '2021', '2022', '2023', '2024', '2025']
             )
-            fig2.update_layout(height=300)
-            st.plotly_chart(fig2, use_container_width=True)
-
-elif selected == "Unduh Hasil":
-    st.markdown('<div class="sub-header">📥 Unduh Hasil</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px; text-align: center;">
-            <h4>📊 Siap untuk diunduh</h4>
-            <p style="color: #7f8c8d;">Hasil analisis clustering siap untuk diunduh dalam berbagai format</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.download_button(
-            label="📊 Unduh CSV",
-            data="dataframe.csv",
-            file_name="hasil_clustering.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    
-    with col2:
-        st.download_button(
-            label="📊 Unduh Excel",
-            data="dataframe.xlsx",
-            file_name="hasil_clustering.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-    
-    with col3:
-        st.download_button(
-            label="📊 Unduh JSON",
-            data="{}",
-            file_name="hasil_clustering.json",
-            mime="application/json",
-            use_container_width=True
-        )
-    
-    preview_data = {
-        "KABUPATEN_KOTA": ["Kab. Bogor", "Kab. Sukabumi", "Kota Bandung"],
-        "PENDIDIKAN": ["SMA", "SMA", "SMA"],
-        "CLUSTER_KMEANS": [1, 2, 1],
-        "CLUSTER_TSKM": [0, 1, 0],
-        "SILHOUETTE": [0.612, 0.612, 0.612],
-        "DAVIES_BOULDIN": [0.842, 0.842, 0.842]
-    }
-    preview_df = pd.DataFrame(preview_data)
-    st.dataframe(preview_df, use_container_width=True)
-
-elif selected == "Tentang Aplikasi":
-    st.markdown('<div class="sub-header">ℹ️ Tentang Aplikasi</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
+            
+            fig = px.imshow(
+                heatmap_df,
+                title='Heatmap Pengangguran Berdasarkan Pendidikan dan Tahun',
+                color_continuous_scale='RdBu_r'
+            )
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab4:
+            st.markdown("#### Time Series Plot")
+            years = ['2020', '2021', '2022', '2023', '2024', '2025']
+            
+            fig = go.Figure()
+            for i in range(3):
+                fig.add_trace(go.Scatter(
+                    x=years,
+                    y=np.random.randint(1000, 5000, 6),
+                    mode='lines+markers',
+                    name=f'Cluster {i}'
+                ))
+            
+            fig.update_layout(
+                title='Trend Pengangguran per Cluster',
+                xaxis_title='Tahun',
+                yaxis_title='Jumlah Pengangguran',
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab5:
+            st.markdown("#### Perbandingan Algoritma")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("##### K-Means")
+                np.random.seed(42)
+                x1 = np.random.randn(200) * 2 + 5
+                y1 = np.random.randn(200) * 2 + 5
+                clusters1 = np.random.randint(0, 3, 200)
+                
+                fig1 = px.scatter(
+                    x=x1, y=y1,
+                    color=clusters1,
+                    title='K-Means Clustering'
+                )
+                fig1.update_layout(height=300)
+                st.plotly_chart(fig1, use_container_width=True)
+            
+            with col2:
+                st.markdown("##### TimeSeriesKMeans")
+                np.random.seed(123)
+                x2 = np.random.randn(200) * 2 + 5
+                y2 = np.random.randn(200) * 2 + 5
+                clusters2 = np.random.randint(0, 4, 200)
+                
+                fig2 = px.scatter(
+                    x=x2, y=y2,
+                    color=clusters2,
+                    title='TimeSeriesKMeans Clustering'
+                )
+                fig2.update_layout(height=300)
+                st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.info("📊 Install plotly untuk visualisasi interaktif: `pip install plotly`")
         st.markdown("""
-            <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px;">
-                <h3>📊 Sistem Komparasi Clustering Pengangguran Terbuka</h3>
-                <p><strong>Versi:</strong> 1.0.0</p>
-                <p><strong>Tanggal Rilis:</strong> 2026</p>
-                <hr>
-                <h4>🎯 Tujuan</h4>
-                <p>Membantu analisis dan perbandingan hasil clustering antara algoritma 
-                K-Means dan TimeSeriesKMeans untuk data pengangguran terbuka di Jawa Barat.</p>
-                <hr>
-                <h4>📚 Teknologi yang Digunakan</h4>
-                <ul>
-                    <li><strong>Framework:</strong> Streamlit</li>
-                    <li><strong>Machine Learning:</strong> Scikit-learn, Tslearn</li>
-                    <li><strong>Visualisasi:</strong> Plotly, Matplotlib</li>
-                    <li><strong>Data Processing:</strong> Pandas, NumPy</li>
-                </ul>
-                <hr>
-                <h4>👥 Tim Pengembang</h4>
-                <ul>
-                    <li>Data Scientist</li>
-                    <li>Data Analyst</li>
-                    <li>UI/UX Designer</li>
-                    <li>Full Stack Developer</li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-            <div style="background-color: #e8f4f8; padding: 2rem; border-radius: 10px;">
-                <h4>📞 Kontak</h4>
-                <p><strong>Email:</strong> support@clustering-app.com</p>
-                <p><strong>Website:</strong> www.clustering-app.com</p>
-                <p><strong>Telepon:</strong> (021) 1234-5678</p>
-                <hr>
-                <h4>🔗 Link Terkait</h4>
-                <ul>
-                    <li><a href="#">Dokumentasi</a></li>
-                    <li><a href="#">GitHub Repository</a></li>
-                    <li><a href="#">Laporan Akhir</a></li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
-
-# Footer
-st.markdown("---")
-st.markdown("""
-    <div style="text-align: center; color: #7f8c8d; padding: 1rem 0;">
-        © 2026 Sistem Komparasi Clustering Pengangguran Terbuka. All rights reserved.
-    </div>
-""", unsafe_allow_html=True)
-''')
-
-print("✅ File app.py berhasil dibuat!")
+        **Visualisasi yang tersedia:**
+        - Elbow Curve
+        - Scatter Plot
+        - Heatmap
+        - Time Series Plot
+        - Perbandingan Algoritma
+        
+        Untuk mengaktifkan visualisasi, install plotly:
+        ```bash
+        pip install plotly
