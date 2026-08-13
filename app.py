@@ -36,18 +36,69 @@ st.set_page_config(
 # Custom CSS untuk styling yang lebih baik
 st.markdown("""
     <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1f77b4;
-        text-align: center;
-        padding: 1rem 0;
-        border-bottom: 3px solid #1f77b4;
-        margin-bottom: 2rem;
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, sans-serif;
     }
+
+    /* ---- Header ---- */
+    .main-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: linear-gradient(135deg, #f7fafd 0%, #eaf2fa 100%);
+        border: 1px solid #e2ebf3;
+        border-left: 5px solid #1f77b4;
+        border-radius: 12px;
+        padding: 1.1rem 1.6rem;
+        margin-bottom: 1.75rem;
+    }
+    .main-header .icon {
+        font-size: 2rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+    .main-header .text h1 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 600;
+        font-size: 1.45rem;
+        line-height: 1.35;
+        color: #1a3a5c;
+        margin: 0;
+        letter-spacing: -0.01em;
+    }
+    .main-header .text p {
+        font-family: 'Inter', sans-serif;
+        font-weight: 400;
+        font-size: 0.88rem;
+        color: #64798d;
+        margin: 0.2rem 0 0 0;
+    }
+
+    /* ---- Sidebar ---- */
+    section[data-testid="stSidebar"] {
+        min-width: 235px !important;
+        max-width: 235px !important;
+    }
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 1.2rem;
+    }
+    section[data-testid="stSidebar"] h3 {
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        color: #8a9bab;
+        margin-bottom: 0.4rem;
+    }
+
     .sub-header {
-        font-size: 1.5rem;
-        color: #2c3e50;
-        padding: 1rem 0;
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #223347;
+        padding: 0.6rem 0;
         border-bottom: 2px solid #ecf0f1;
         margin-bottom: 1rem;
     }
@@ -99,19 +150,19 @@ st.markdown("""
         border-top: 1px solid #ecf0f1;
         margin-top: 2rem;
     }
-    .section-title {
-        font-size: 1.15rem;
-        font-weight: 600;
-        color: #2c3e50;
-        padding-bottom: 0.4rem;
-        border-bottom: 2px solid #ecf0f1;
-        margin-bottom: 0.8rem;
-    }
     </style>
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown('<div class="main-header">📊 Sistem Komparasi Clustering Pengangguran Terbuka Berdasarkan Tingkat Pendidikan di Jawa Barat</div>', unsafe_allow_html=True)
+st.markdown("""
+    <div class="main-header">
+        <div class="icon">📊</div>
+        <div class="text">
+            <h1>Sistem Komparasi Clustering Pengangguran Terbuka</h1>
+            <p>Analisis dan perbandingan pola pengangguran berdasarkan tingkat pendidikan di Jawa Barat</p>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
 # Sidebar untuk menu
 with st.sidebar:
@@ -122,14 +173,15 @@ with st.sidebar:
             menu_title=None,
             options=["Beranda", "Upload Dataset", "Exploratory Data Analysis", "Clustering", 
                     "Komparasi Algoritma", "Visualisasi", "Unduh Hasil", "Tentang Aplikasi"],
-            icons=["house", "cloud-upload", "bar-chart", "diagram-3", "git-compare", 
+            icons=["house", "cloud-upload", "bar-chart", "diagram-3", "arrow-left-right", 
                    "graph-up", "download", "info-circle"],
             menu_icon="cast",
             default_index=0,
             styles={
                 "container": {"padding": "0!important", "background-color": "#fafafa"},
-                "icon": {"color": "#1f77b4", "font-size": "20px"},
-                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", 
+                "icon": {"color": "#1f77b4", "font-size": "15px"},
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin": "2px 0",
+                            "padding": "8px 10px", "border-radius": "6px",
                             "--hover-color": "#eee"},
                 "nav-link-selected": {"background-color": "#1f77b4"},
             }
@@ -141,225 +193,48 @@ with st.sidebar:
 
 # ==================== BERANDA ====================
 if selected == "Beranda":
-    st.markdown('<div class="sub-header">📊 Sistem Komparasi Clustering Pengangguran Terbuka Berdasarkan Tingkat Pendidikan di Jawa Barat</div>', unsafe_allow_html=True)
-    st.caption("Aplikasi ini digunakan untuk melakukan analisis clustering menggunakan algoritma K-Means dan TimeSeriesKMeans serta membandingkan hasil kedua algoritma.")
-
-    col_left, col_right = st.columns([1, 1.25], gap="large")
-
-    # ---------- KOLOM KIRI ----------
-    with col_left:
-        # 1. Upload Dataset
-        st.markdown('<div class="section-title">1. Upload Dataset</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">🏠 Selamat Datang</div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
         st.markdown("""
-            <div class="upload-area" style="padding: 1.5rem;">
-                <h5 style="margin-bottom:0.3rem;">📁 Upload file dataset (.xlsx)</h5>
-                <p style="color: #7f8c8d; margin-bottom:0.2rem;">Drag and drop file here</p>
-                <p style="color: #95a5a6; font-size: 0.85rem;">Limit 200MB per file • XLSX</p>
+            <div style="background-color: #e8f4f8; padding: 2rem; border-radius: 10px;">
+                <h3>📋 Tentang Aplikasi</h3>
+                <p>Aplikasi ini digunakan untuk melakukan analisis clustering menggunakan 
+                algoritma K-Means dan TimeSeriesKMeans serta membandingkan hasil kedua 
+                algoritma.</p>
+                <p><strong>Fitur Utama:</strong></p>
+                <ul>
+                    <li>Upload dataset dalam format XLSX</li>
+                    <li>Exploratory Data Analysis</li>
+                    <li>Clustering dengan K-Means & TimeSeriesKMeans</li>
+                    <li>Komparasi kedua algoritma</li>
+                    <li>Visualisasi interaktif</li>
+                    <li>Unduh hasil analisis</li>
+                </ul>
             </div>
         """, unsafe_allow_html=True)
-        uploaded_file = st.file_uploader(
-            "Pilih file XLSX", type=['xlsx'], label_visibility="collapsed", key="home_uploader"
-        )
-
-        st.markdown("###### Preview Dataset")
-        dummy_preview = pd.DataFrame({
-            "KABUPATEN_KOTA": ["Kab. Bogor", "Kab. Bogor", "Kab. Bogor"],
-            "PENDIDIKAN": ["SD Ke Bawah", "SMP", "SMA"],
-            "TAHUN_2020": [1234, 2345, 4567],
-            "TAHUN_2021": [1150, 2100, 4320],
-            "...": ["...", "...", "..."],
-            "TAHUN_2025": [980, 1760, 3980],
-        })
-
-        if uploaded_file is not None:
-            try:
-                df_home = pd.read_excel(uploaded_file)
-                st.success(f"✅ File berhasil diupload! {len(df_home)} baris data")
-            except Exception as e:
-                st.error(f"Error membaca file: {e}")
-                df_home = dummy_preview
-        else:
-            df_home = dummy_preview
-
-        st.dataframe(df_home.head(3), use_container_width=True, height=140, hide_index=True)
-        n_rows = len(df_home) if uploaded_file is not None else 1620
-        n_cols = len(df_home.columns) if uploaded_file is not None else 8
-        st.markdown(f"""
-            <div style="background-color: #f8f9fa; padding: 0.6rem 1rem; border-radius: 5px; margin-top: 0.4rem; font-size: 0.85rem;">
-                <strong>Jumlah Baris:</strong> {n_rows:,}&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Jumlah Kolom:</strong> {n_cols}
+    
+    with col2:
+        st.markdown("""
+            <div style="background-color: #f0f8f0; padding: 2rem; border-radius: 10px;">
+                <h3>📊 Dataset</h3>
+                <p><strong>Jumlah Observasi:</strong> 1.620 baris</p>
+                <p><strong>Jumlah Kab/Kota:</strong> 27</p>
+                <p><strong>Jumlah Pendidikan:</strong> 6 kategori</p>
+                <p><strong>Periode Waktu:</strong> 2020 - 2025</p>
+                <br>
+                <p><strong>Pendidikan yang dianalisis:</strong></p>
+                <ul>
+                    <li>SD ke Bawah</li>
+                    <li>SMP</li>
+                    <li>SMA</li>
+                    <li>SMK</li>
+                    <li>Diploma</li>
+                    <li>Sarjana</li>
+                </ul>
             </div>
-        """.replace(",", "."), unsafe_allow_html=True)
-
-        # 4. Hasil Clustering
-        st.markdown('<div class="section-title" style="margin-top:1.5rem;">4. Hasil Clustering</div>', unsafe_allow_html=True)
-
-        st.markdown("###### Ringkasan Hasil")
-        result_data_home = {
-            "Algoritma": ["K-Means", "TimeSeriesKMeans"],
-            "Cluster Terbaik": [3, 4],
-            "Silhouette Score (↑ lebih tinggi)": [0.612, 0.674],
-            "Davies-Bouldin Index (↓ lebih rendah)": [0.842, 0.691],
-        }
-        st.dataframe(pd.DataFrame(result_data_home), use_container_width=True, hide_index=True)
-
-        st.markdown("###### Hasil Cluster (Contoh)")
-        cluster_data_home = {
-            "KABUPATEN_KOTA": ["Kab. Bogor", "Kab. Bogor", "Kab. Bogor"],
-            "PENDIDIKAN": ["SD Ke Bawah", "SMP", "SMA"],
-            "CLUSTER_KMEANS": [1, 1, 2],
-            "CLUSTER_TSKM": [0, 0, 1],
-        }
-        st.dataframe(pd.DataFrame(cluster_data_home), use_container_width=True, hide_index=True)
-
-    # ---------- KOLOM KANAN ----------
-    with col_right:
-        # 2. Ringkasan Data
-        st.markdown('<div class="section-title">2. Ringkasan Data</div>', unsafe_allow_html=True)
-        r1, r2, r3, r4 = st.columns(4)
-        stats_home = [
-            ("27", "Jumlah Wilayah", "Kab/Kota", "#3498db"),
-            ("6", "Jumlah Pendidikan", "Kategori", "#2ecc71"),
-            ("6", "Jumlah Tahun", "(2020 - 2025)", "#e67e22"),
-            ("1.620", "Total Observasi", "Baris Data", "#e74c3c"),
-        ]
-        for col, (num, label, sub, color) in zip([r1, r2, r3, r4], stats_home):
-            with col:
-                st.markdown(f"""
-                    <div class="stat-card" style="border-left-color: {color}; padding: 0.9rem; margin-bottom:0;">
-                        <div class="stat-number" style="font-size:1.3rem;">{num}</div>
-                        <div class="stat-label" style="font-size:0.75rem;">{label}</div>
-                        <div class="stat-label" style="font-size:0.7rem; margin-top:0;">{sub}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-        # 3. Pilih Algoritma
-        st.markdown('<div class="section-title" style="margin-top:1.5rem;">3. Pilih Algoritma</div>', unsafe_allow_html=True)
-        a1, a2 = st.columns([1.3, 1])
-        with a1:
-            st.markdown("**Pilih Algoritma Clustering**")
-            algorithm_home = st.radio(
-                "Algoritma", ["K-Means", "TimeSeriesKMeans (DTW)", "Komparasi Kedua Algoritma"],
-                index=0, label_visibility="collapsed", key="algo_home"
-            )
-        with a2:
-            st.markdown("**Jumlah Cluster (k)**")
-            k_method_home = st.radio(
-                "Metode k", ["Otomatis (Rekomendasi)", "Manual"],
-                index=0, label_visibility="collapsed", key="k_method_home"
-            )
-            if k_method_home == "Manual":
-                st.number_input("Jumlah Cluster", min_value=2, max_value=10, value=3, key="k_manual_home")
-
-        if st.button("▶ Jalankan Analisis", use_container_width=True, key="run_home"):
-            with st.spinner("Sedang menganalisis data..."):
-                import time
-                time.sleep(1.5)
-            st.success("✅ Analisis clustering selesai!")
-
-        # 5. Visualisasi
-        st.markdown('<div class="section-title" style="margin-top:1.5rem;">5. Visualisasi</div>', unsafe_allow_html=True)
-        if PLOTLY_AVAILABLE:
-            vtab1, vtab2, vtab3, vtab4, vtab5 = st.tabs(
-                ["Elbow Curve", "Scatter Plot", "Heatmap", "Time Series Plot", "Perbandingan"]
-            )
-
-            with vtab1:
-                ve1, ve2 = st.columns(2)
-                k_values_home = list(range(2, 11))
-                inertia_km = [6000, 4200, 2900, 2100, 1600, 1250, 1000, 820, 700]
-                inertia_tskm = [4800, 3300, 2400, 1800, 1400, 1150, 950, 800, 700]
-                with ve1:
-                    fig = px.line(x=k_values_home, y=inertia_km, markers=True,
-                                  title="Elbow Curve - K-Means",
-                                  labels={'x': 'Jumlah Cluster (k)', 'y': 'Inertia'})
-                    fig.add_vline(x=3, line_dash="dash", line_color="red")
-                    fig.update_layout(height=280, margin=dict(t=40, b=10))
-                    st.plotly_chart(fig, use_container_width=True)
-                with ve2:
-                    fig = px.line(x=k_values_home, y=inertia_tskm, markers=True,
-                                  title="Elbow Curve - TimeSeriesKMeans (DTW)",
-                                  labels={'x': 'Jumlah Cluster (k)', 'y': 'Inertia'})
-                    fig.add_vline(x=4, line_dash="dash", line_color="red")
-                    fig.update_layout(height=280, margin=dict(t=40, b=10))
-                    st.plotly_chart(fig, use_container_width=True)
-
-            with vtab2:
-                np.random.seed(42)
-                cluster1 = np.random.randn(80, 2) * 0.8 + [2, 2]
-                cluster2 = np.random.randn(80, 2) * 0.8 + [7, 7]
-                cluster3 = np.random.randn(80, 2) * 0.8 + [2, 7]
-                X = np.vstack([cluster1, cluster2, cluster3])
-                labels = np.array([0] * 80 + [1] * 80 + [2] * 80)
-                df_scatter_home = pd.DataFrame(X, columns=['Komponen 1', 'Komponen 2'])
-                df_scatter_home['Cluster'] = labels.astype(str)
-                fig = px.scatter(df_scatter_home, x='Komponen 1', y='Komponen 2', color='Cluster',
-                                  title='Visualisasi Cluster (k=3)')
-                fig.update_layout(height=320)
-                st.plotly_chart(fig, use_container_width=True)
-
-            with vtab3:
-                data_hm = np.clip(np.random.randn(6, 6) * 0.5 + 0.5, 0, 1)
-                heatmap_df_home = pd.DataFrame(
-                    data_hm,
-                    index=['SD Ke Bawah', 'SMP', 'SMA', 'SMK', 'Diploma', 'Sarjana'],
-                    columns=['2020', '2021', '2022', '2023', '2024', '2025']
-                )
-                fig = px.imshow(heatmap_df_home, title='Heatmap Pengangguran',
-                                 color_continuous_scale='RdBu_r', aspect="auto", text_auto=".2f")
-                fig.update_layout(height=320)
-                st.plotly_chart(fig, use_container_width=True)
-
-            with vtab4:
-                years_home = ['2020', '2021', '2022', '2023', '2024', '2025']
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=years_home, y=[4500, 4000, 3500, 3000, 2500, 2000],
-                                          mode='lines+markers', name='Cluster 0 (Menurun)'))
-                fig.add_trace(go.Scatter(x=years_home, y=[3000, 3200, 3100, 3300, 3200, 3100],
-                                          mode='lines+markers', name='Cluster 1 (Stabil)'))
-                fig.add_trace(go.Scatter(x=years_home, y=[1500, 1800, 2200, 2800, 3500, 4200],
-                                          mode='lines+markers', name='Cluster 2 (Meningkat)'))
-                fig.update_layout(title='Trend Pengangguran per Cluster', height=320, hovermode='x unified')
-                st.plotly_chart(fig, use_container_width=True)
-
-            with vtab5:
-                metrics_home = ['Silhouette Score', 'Davies-Bouldin Index']
-                fig = go.Figure()
-                fig.add_trace(go.Bar(name='K-Means', x=metrics_home, y=[0.612, 0.842], marker_color='#3498db'))
-                fig.add_trace(go.Bar(name='TimeSeriesKMeans', x=metrics_home, y=[0.674, 0.691], marker_color='#e74c3c'))
-                fig.update_layout(title='Perbandingan Metrik Clustering', barmode='group', height=320)
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("⚠️ Plotly tidak tersedia. Install dengan: pip install plotly")
-
-    # 6. Unduh Hasil (full width)
-    st.markdown('<div class="section-title" style="margin-top:1.5rem;">6. Unduh Hasil</div>', unsafe_allow_html=True)
-    st.caption("Unduh hasil clustering dan visualisasi.")
-    d1, d2, d3, d4 = st.columns(4)
-    with d1:
-        st.download_button(
-            "📄 Unduh Hasil K-Means (.csv)",
-            data="KABUPATEN_KOTA,PENDIDIKAN,CLUSTER_KMEANS\nKab. Bogor,SD Ke Bawah,1\nKab. Bogor,SMP,1\nKab. Bogor,SMA,2",
-            file_name="hasil_kmeans.csv", mime="text/csv", use_container_width=True
-        )
-    with d2:
-        st.download_button(
-            "📄 Unduh Hasil TimeSeriesKMeans (.csv)",
-            data="KABUPATEN_KOTA,PENDIDIKAN,CLUSTER_TSKM\nKab. Bogor,SD Ke Bawah,0\nKab. Bogor,SMP,0\nKab. Bogor,SMA,1",
-            file_name="hasil_timeserieskmeans.csv", mime="text/csv", use_container_width=True
-        )
-    with d3:
-        st.download_button(
-            "📄 Unduh Hasil Komparasi (.csv)",
-            data="Algoritma,Cluster Terbaik,Silhouette,Davies-Bouldin\nK-Means,3,0.612,0.842\nTimeSeriesKMeans,4,0.674,0.691",
-            file_name="hasil_komparasi.csv", mime="text/csv", use_container_width=True
-        )
-    with d4:
-        st.download_button(
-            "🖼️ Unduh Grafik (.png)",
-            data=b"",
-            file_name="grafik_placeholder.png", mime="image/png", use_container_width=True,
-            disabled=True, help="Tersedia setelah analisis dijalankan dengan data asli"
-        )
+        """, unsafe_allow_html=True)
 
 # ==================== UPLOAD DATASET ====================
 elif selected == "Upload Dataset":
