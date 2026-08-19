@@ -16,6 +16,7 @@ warnings.filterwarnings('ignore')
 try:
     import plotly.express as px
     import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
@@ -250,6 +251,10 @@ if 'pivot_km' not in st.session_state:
     st.session_state.pivot_km = None
 if 'X' not in st.session_state:
     st.session_state.X = None
+if 'X_ts' not in st.session_state:
+    st.session_state.X_ts = None
+if 'tahun_order' not in st.session_state:
+    st.session_state.tahun_order = None
 if 'hasil_km' not in st.session_state:
     st.session_state.hasil_km = None
 if 'hasil_ts' not in st.session_state:
@@ -264,6 +269,8 @@ if 'results_ts_df' not in st.session_state:
     st.session_state.results_ts_df = None
 if 'analysis_done' not in st.session_state:
     st.session_state.analysis_done = False
+if 'pendidikan_order' not in st.session_state:
+    st.session_state.pendidikan_order = None
 
 # Sidebar untuk menu
 with st.sidebar:
@@ -477,13 +484,13 @@ if selected == "Beranda":
     
     with col_status1:
         if st.session_state.data is not None:
-            st.markdown("""
+            st.markdown(f"""
             <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
                 <div style="font-size: 1.8rem;">✅</div>
                 <div class="stat-label" style="font-size: 0.85rem;">Dataset Terupload</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">{} baris</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">{len(st.session_state.data)} baris</div>
             </div>
-            """.format(len(st.session_state.data)), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
@@ -495,13 +502,13 @@ if selected == "Beranda":
     
     with col_status2:
         if st.session_state.X is not None:
-            st.markdown("""
+            st.markdown(f"""
             <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
                 <div style="font-size: 1.8rem;">✅</div>
                 <div class="stat-label" style="font-size: 0.85rem;">Preprocessing Selesai</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">{} objek x {} fitur</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">{st.session_state.X.shape[0]} objek x {st.session_state.X.shape[1]} fitur</div>
             </div>
-            """.format(st.session_state.X.shape[0], st.session_state.X.shape[1]), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
@@ -513,13 +520,13 @@ if selected == "Beranda":
     
     with col_status3:
         if st.session_state.hasil_km is not None:
-            st.markdown("""
+            st.markdown(f"""
             <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
                 <div style="font-size: 1.8rem;">✅</div>
                 <div class="stat-label" style="font-size: 0.85rem;">Clustering K-Means</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">k={} cluster</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">k={st.session_state.final_k} cluster</div>
             </div>
-            """.format(st.session_state.final_k), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
@@ -531,13 +538,13 @@ if selected == "Beranda":
     
     with col_status4:
         if st.session_state.hasil_ts is not None:
-            st.markdown("""
+            st.markdown(f"""
             <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
                 <div style="font-size: 1.8rem;">✅</div>
                 <div class="stat-label" style="font-size: 0.85rem;">TimeSeriesKMeans</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">k={} cluster</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">k={st.session_state.final_k_ts} cluster</div>
             </div>
-            """.format(st.session_state.final_k_ts), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
@@ -549,7 +556,7 @@ if selected == "Beranda":
     
     st.markdown("---")
     
-    # ==================== FITUR UTAMA ====================
+    # Fitur Utama
     st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">🚀 Fitur Utama Aplikasi</h3>', unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
@@ -592,63 +599,62 @@ if selected == "Beranda":
     
     st.markdown("---")
     
-    # ==================== LANGKAH PENGGUNAAN ====================
+    # Langkah Penggunaan
     st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">📋 Cara Penggunaan</h3>', unsafe_allow_html=True)
     
     col_step1, col_step2, col_step3, col_step4 = st.columns(4)
     
     with col_step1:
-        st.markdown("""
+        status = "done" if st.session_state.data is not None else "ready"
+        label = "Selesai" if st.session_state.data is not None else "Belum"
+        st.markdown(f"""
         <div class="step-card">
             <div class="step-number">1</div>
             <h4>Upload Dataset</h4>
             <p style="color: #7f8c8d; font-size: 0.85rem;">Unggah file Excel berisi data pengangguran terbuka per kab/kota, tahun, dan pendidikan</p>
-            <span class="status-badge status-{}">{} </span>
+            <span class="status-badge status-{status}">{label}</span>
         </div>
-        """.format(
-            "done" if st.session_state.data is not None else "ready",
-            "Selesai" if st.session_state.data is not None else "Belum"
-        ), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     with col_step2:
         status = "done" if st.session_state.X is not None else "ready"
         label = "Selesai" if st.session_state.X is not None else "Belum"
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card">
             <div class="step-number">2</div>
             <h4>EDA & Preprocessing</h4>
-            <p style="color: #7f8c8d; font-size: 0.85rem;">Lihat analisis eksploratif data dan preprocessing otomatis (penggabungan kategori, normalisasi)</p>
-            <span class="status-badge status-{}">{} </span>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Lihat analisis eksploratif data dan preprocessing otomatis</p>
+            <span class="status-badge status-{status}">{label}</span>
         </div>
-        """.format(status, label), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     with col_step3:
         status = "done" if st.session_state.hasil_km is not None else "ready"
         label = "Selesai" if st.session_state.hasil_km is not None else "Belum"
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card">
             <div class="step-number">3</div>
             <h4>Jalankan Clustering</h4>
-            <p style="color: #7f8c8d; font-size: 0.85rem;">Pilih algoritma (K-Means / TimeSeriesKMeans) dan jalankan analisis clustering</p>
-            <span class="status-badge status-{}">{} </span>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Pilih algoritma dan jalankan analisis clustering</p>
+            <span class="status-badge status-{status}">{label}</span>
         </div>
-        """.format(status, label), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     with col_step4:
         status = "done" if st.session_state.hasil_km is not None and st.session_state.hasil_ts is not None else "ready"
         label = "Selesai" if st.session_state.hasil_km is not None and st.session_state.hasil_ts is not None else "Belum"
-        st.markdown("""
+        st.markdown(f"""
         <div class="step-card">
             <div class="step-number">4</div>
             <h4>Komparasi & Unduh</h4>
-            <p style="color: #7f8c8d; font-size: 0.85rem;">Bandingkan hasil kedua algoritma dan unduh hasil analisis dalam format CSV</p>
-            <span class="status-badge status-{}">{} </span>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Bandingkan hasil kedua algoritma dan unduh hasil analisis</p>
+            <span class="status-badge status-{status}">{label}</span>
         </div>
-        """.format(status, label), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # ==================== INFORMASI DATASET ====================
+    # Informasi Dataset
     st.markdown('<h3 style="text-align: center; margin-bottom: 1rem;">📋 Informasi Dataset</h3>', unsafe_allow_html=True)
     
     col_info1, col_info2 = st.columns([1, 1])
@@ -692,16 +698,13 @@ if selected == "Beranda":
         </div>
         """, unsafe_allow_html=True)
     
-    # ==================== QUICK START ====================
+    # Quick Start
     if st.session_state.data is None:
         st.markdown("---")
         st.markdown("""
         <div style="text-align: center; padding: 1.5rem; background-color: #e8f4f8; border-radius: 10px;">
             <h4>🚀 Mulai Analisis Sekarang</h4>
             <p style="color: #5a6a7a;">Upload dataset Anda melalui menu <strong>Upload Dataset</strong> untuk memulai analisis clustering</p>
-            <div style="margin-top: 0.5rem;">
-                <span style="font-size: 0.85rem; background-color: #1f77b4; color: white; padding: 0.3rem 1.5rem; border-radius: 20px;">→ Upload Dataset</span>
-            </div>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -709,19 +712,37 @@ if selected == "Beranda":
         col_quick1, col_quick2, col_quick3 = st.columns(3)
         
         with col_quick1:
-            if st.button("📊 EDA", use_container_width=True):
-                st.switch_page("app.py")  # Arahkan ke menu EDA
-                selected = "Exploratory Data Analysis"
+            st.markdown("""
+            <div style="text-align: center;">
+                <a href="#" onclick="window.location.href='?menu=Exploratory Data Analysis'">
+                    <button style="width:100%; padding:0.5rem; background-color:#1f77b4; color:white; border:none; border-radius:5px; cursor:pointer;">
+                        📊 EDA
+                    </button>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col_quick2:
-            if st.button("🎯 Jalankan Clustering", use_container_width=True):
-                st.switch_page("app.py")
-                selected = "Clustering"
+            st.markdown("""
+            <div style="text-align: center;">
+                <a href="#" onclick="window.location.href='?menu=Clustering'">
+                    <button style="width:100%; padding:0.5rem; background-color:#2ecc71; color:white; border:none; border-radius:5px; cursor:pointer;">
+                        🎯 Jalankan Clustering
+                    </button>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col_quick3:
-            if st.button("📥 Unduh Hasil", use_container_width=True):
-                st.switch_page("app.py")
-                selected = "Unduh Hasil"
+            st.markdown("""
+            <div style="text-align: center;">
+                <a href="#" onclick="window.location.href='?menu=Unduh Hasil'">
+                    <button style="width:100%; padding:0.5rem; background-color:#e67e22; color:white; border:none; border-radius:5px; cursor:pointer;">
+                        📥 Unduh Hasil
+                    </button>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
 
 # ==================== UPLOAD DATASET ====================
 elif selected == "Upload Dataset":
@@ -793,6 +814,7 @@ elif selected == "Exploratory Data Analysis":
         data = st.session_state.data
         
         # Statistik ringkasan
+        st.markdown("#### Ringkasan Data")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Jumlah Wilayah", data['nama_kabupaten_kota'].nunique())
@@ -803,48 +825,124 @@ elif selected == "Exploratory Data Analysis":
         with col4:
             st.metric("Total Observasi", len(data))
         
+        # Statistik deskriptif lengkap
         st.markdown("#### Statistik Deskriptif Jumlah Pengangguran")
         st.dataframe(data['jumlah_pengangguran'].describe(), use_container_width=True)
         
         st.markdown("#### Distribusi Jumlah Pengangguran per Tingkat Pendidikan")
-        edu_stats = data.groupby('pendidikan')['jumlah_pengangguran'].sum().sort_values(ascending=False)
+        edu_stats = data.groupby('pendidikan')['jumlah_pengangguran'].agg(['sum', 'mean', 'count']).sort_values('sum', ascending=False)
         st.dataframe(edu_stats, use_container_width=True)
+        
+        # Cek missing value
+        st.markdown("#### Cek Missing Value")
+        missing_data = data.isnull().sum()
+        st.dataframe(pd.DataFrame({'Missing Value': missing_data}), use_container_width=True)
         
         if PLOTLY_AVAILABLE:
             st.markdown("#### Visualisasi Data")
             
-            tab1, tab2, tab3 = st.tabs(["Tren Pengangguran", "Distribusi per Tahun", "Heatmap"])
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "Tren Pengangguran", 
+                "Distribusi per Tahun", 
+                "Heatmap Correlasi",
+                "Distribusi per Pendidikan",
+                "Statistik Lanjutan"
+            ])
             
             with tab1:
+                # Tren pengangguran per pendidikan
                 fig = px.line(
                     data, x='tahun', y='jumlah_pengangguran', 
                     color='pendidikan', 
                     title='Tren Pengangguran Terbuka per Pendidikan (2020-2025)',
                     markers=True
                 )
-                fig.update_layout(height=400)
+                fig.update_layout(height=450, hovermode='x unified')
                 st.plotly_chart(fig, use_container_width=True)
+                st.info("💡 **Insight:** Grafik ini menunjukkan tren pengangguran per tingkat pendidikan dari tahun 2020-2025")
             
             with tab2:
+                # Boxplot distribusi per tahun
                 fig = px.box(
                     data, x='tahun', y='jumlah_pengangguran',
                     title='Distribusi Jumlah Pengangguran per Tahun'
                 )
-                fig.update_layout(height=400)
+                fig.update_layout(height=450)
                 st.plotly_chart(fig, use_container_width=True)
+                st.info("💡 **Insight:** Boxplot menunjukkan variasi dan outlier data pengangguran per tahun")
             
             with tab3:
-                # Heatmap dari pivot
-                if st.session_state.pivot_km is not None:
-                    heatmap_data = st.session_state.pivot_km.T
-                    fig = px.imshow(
-                        heatmap_data,
-                        title='Heatmap Pengangguran per Kab/Kota dan Pendidikan',
-                        color_continuous_scale='RdBu_r',
-                        aspect='auto'
+                # Heatmap correlasi antar tahun
+                st.markdown("##### Heatmap Correlasi Antar Tahun")
+                pivot_corr = data.pivot_table(
+                    index=['nama_kabupaten_kota', 'pendidikan'],
+                    columns='tahun',
+                    values='jumlah_pengangguran',
+                    aggfunc='mean'
+                )
+                corr_matrix = pivot_corr.corr()
+                
+                fig = px.imshow(
+                    corr_matrix,
+                    title='Heatmap Correlasi Antar Tahun',
+                    color_continuous_scale='RdBu_r',
+                    aspect='auto',
+                    text_auto=True
+                )
+                fig.update_layout(height=450)
+                st.plotly_chart(fig, use_container_width=True)
+                st.info("💡 **Insight:** Heatmap menunjukkan korelasi antar tahun. Warna merah = korelasi positif tinggi")
+            
+            with tab4:
+                # Distribusi per pendidikan
+                st.markdown("##### Distribusi Jumlah Pengangguran per Pendidikan")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Bar chart
+                    edu_sum = data.groupby('pendidikan')['jumlah_pengangguran'].sum().reset_index()
+                    fig = px.bar(
+                        edu_sum, x='pendidikan', y='jumlah_pengangguran',
+                        title='Total Pengangguran per Tingkat Pendidikan',
+                        color='jumlah_pengangguran',
+                        color_continuous_scale='Blues'
                     )
-                    fig.update_layout(height=500)
+                    fig.update_layout(height=350)
                     st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    # Boxplot per pendidikan
+                    fig = px.box(
+                        data, x='pendidikan', y='jumlah_pengangguran',
+                        title='Distribusi Pengangguran per Tingkat Pendidikan'
+                    )
+                    fig.update_layout(height=350)
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            with tab5:
+                # Statistik lanjutan
+                st.markdown("##### Statistik per Kelompok Pendidikan")
+                
+                # Group by pendidikan
+                stats_per_edu = data.groupby('pendidikan')['jumlah_pengangguran'].agg([
+                    ('Mean', 'mean'),
+                    ('Median', 'median'),
+                    ('Std Dev', 'std'),
+                    ('Min', 'min'),
+                    ('Max', 'max')
+                ]).round(2)
+                st.dataframe(stats_per_edu, use_container_width=True)
+                
+                st.markdown("##### Statistik per Tahun")
+                stats_per_year = data.groupby('tahun')['jumlah_pengangguran'].agg([
+                    ('Mean', 'mean'),
+                    ('Median', 'median'),
+                    ('Std Dev', 'std'),
+                    ('Min', 'min'),
+                    ('Max', 'max')
+                ]).round(2)
+                st.dataframe(stats_per_year, use_container_width=True)
         else:
             st.warning("⚠️ Plotly tidak tersedia. Install dengan: pip install plotly")
     else:
@@ -892,12 +990,14 @@ elif selected == "Clustering":
                 
                 if algorithm in ["TimeSeriesKMeans (DTW)", "Komparasi Kedua Algoritma"]:
                     if TSKLEARN_AVAILABLE:
-                        hasil_ts, X_ts, X_ts_flat, results_ts_df, final_k_ts, _ = run_timeseries_clustering(
+                        hasil_ts, X_ts, X_ts_flat, results_ts_df, final_k_ts, tahun_order = run_timeseries_clustering(
                             st.session_state.data, st.session_state.pendidikan_order
                         )
                         st.session_state.hasil_ts = hasil_ts
                         st.session_state.results_ts_df = results_ts_df
                         st.session_state.final_k_ts = final_k_ts
+                        st.session_state.X_ts = X_ts
+                        st.session_state.tahun_order = tahun_order
                     else:
                         st.error("⚠️ tslearn tidak tersedia. Install dengan: pip install tslearn")
             
@@ -992,7 +1092,7 @@ elif selected == "Komparasi Algoritma":
             """, unsafe_allow_html=True)
         
         if PLOTLY_AVAILABLE:
-            st.markdown("#### Visualisasi Perbandingan")
+            st.markdown("#### Visualisasi Perbandingan Metrik")
             
             metrics = ['Silhouette Score', 'Davies-Bouldin Index']
             kmeans_values = [km_silhouette, km_dbi]
@@ -1020,7 +1120,7 @@ elif selected == "Komparasi Algoritma":
             )
             st.plotly_chart(fig, use_container_width=True)
             
-            # Tambahan insight
+            # Insight
             st.info(f"""
             💡 **Analisis Komparasi:**
             - **Silhouette Score:** TimeSeriesKMeans ({ts_silhouette:.4f}) {'lebih baik' if ts_silhouette > km_silhouette else 'kurang baik'} dari K-Means ({km_silhouette:.4f})
@@ -1037,16 +1137,21 @@ elif selected == "Visualisasi":
     if st.session_state.X is not None:
         if PLOTLY_AVAILABLE:
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                "Elbow Curve", "Scatter Plot", "Heatmap", "Time Series Plot", "Perbandingan"
+                "Elbow & Metrik", 
+                "Scatter Plot", 
+                "Heatmap K-Means",
+                "Heatmap TimeSeries", 
+                "Perbandingan"
             ])
             
             with tab1:
-                st.markdown("#### Elbow Curve")
+                st.markdown("#### Elbow Method dan Metrik Evaluasi")
                 
                 if st.session_state.results_df is not None:
                     col1, col2 = st.columns(2)
                     
                     with col1:
+                        # Elbow Curve K-Means
                         fig = px.line(
                             st.session_state.results_df, x='Jumlah Cluster', y='Inertia',
                             markers=True,
@@ -1060,6 +1165,7 @@ elif selected == "Visualisasi":
                         st.plotly_chart(fig, use_container_width=True)
                     
                     with col2:
+                        # Elbow Curve TimeSeriesKMeans
                         if st.session_state.results_ts_df is not None:
                             fig = px.line(
                                 st.session_state.results_ts_df, x='Jumlah Cluster', y='Inertia',
@@ -1072,83 +1178,140 @@ elif selected == "Visualisasi":
                             )
                             fig.update_layout(height=350)
                             st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Metrik Evaluasi
+                    st.markdown("##### Perbandingan Metrik Evaluasi")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric(
+                            "Silhouette Score", 
+                            f"{st.session_state.results_df.loc[st.session_state.results_df['Jumlah Cluster'] == st.session_state.final_k, 'Silhouette Score'].values[0]:.4f}",
+                            help="Semakin tinggi semakin baik (rentang -1 hingga 1)"
+                        )
+                    
+                    with col2:
+                        st.metric(
+                            "Davies-Bouldin Index", 
+                            f"{st.session_state.results_df.loc[st.session_state.results_df['Jumlah Cluster'] == st.session_state.final_k, 'Davies-Bouldin Index'].values[0]:.4f}",
+                            help="Semakin rendah semakin baik"
+                        )
+                    
+                    with col3:
+                        st.metric(
+                            "Jumlah Cluster Optimal", 
+                            st.session_state.final_k,
+                            help="Berdasarkan voting Elbow + Silhouette + DBI"
+                        )
             
             with tab2:
                 st.markdown("#### Scatter Plot (PCA 2D)")
                 
-                # PCA untuk visualisasi
-                pca = PCA(n_components=2, random_state=42)
-                X_pca = pca.fit_transform(st.session_state.X)
-                
                 if st.session_state.hasil_km is not None:
+                    pca = PCA(n_components=2, random_state=42)
+                    X_pca = pca.fit_transform(st.session_state.X)
                     df_pca = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
                     df_pca['Cluster'] = st.session_state.hasil_km['cluster'].values
+                    df_pca['Kab/Kota'] = st.session_state.hasil_km['nama_kabupaten_kota'].values
+                    df_pca['Tahun'] = st.session_state.hasil_km['tahun'].values
                     
                     fig = px.scatter(
                         df_pca, x='PC1', y='PC2', color='Cluster',
+                        hover_data=['Kab/Kota', 'Tahun'],
                         title=f'Visualisasi Cluster K-Means (k={st.session_state.final_k})',
-                        color_continuous_scale='Viridis'
+                        color_continuous_scale='Viridis',
+                        size_max=15
                     )
-                    fig.update_layout(height=400)
+                    fig.update_layout(height=450)
                     st.plotly_chart(fig, use_container_width=True)
                     
                     st.caption(f"PC1: {pca.explained_variance_ratio_[0]*100:.1f}% variance | PC2: {pca.explained_variance_ratio_[1]*100:.1f}% variance")
             
             with tab3:
-                st.markdown("#### Heatmap Cluster")
+                st.markdown("#### Heatmap Cluster K-Means")
                 
                 if st.session_state.hasil_km is not None:
-                    # Heatmap cluster per kab/kota dan tahun
-                    pivot_cluster = st.session_state.hasil_km.pivot_table(
+                    # Heatmap 1: per kab/kota dan tahun
+                    st.markdown("##### Heatmap Cluster per Kabupaten/Kota dan Tahun")
+                    pivot_cluster_km = st.session_state.hasil_km.pivot_table(
                         index='nama_kabupaten_kota', columns='tahun', values='cluster'
                     )
                     
                     fig = px.imshow(
-                        pivot_cluster,
+                        pivot_cluster_km,
                         title=f'Cluster K-Means per Kabupaten/Kota dan Tahun (k={st.session_state.final_k})',
                         color_continuous_scale='Viridis',
                         aspect='auto'
                     )
                     fig.update_layout(height=500)
                     st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Heatmap 2: rata-rata per fitur per cluster
+                    st.markdown("##### Rata-rata Jumlah Pengangguran per Cluster")
+                    pendidikan_order = st.session_state.pendidikan_order
+                    cluster_means = st.session_state.hasil_km.groupby('cluster')[pendidikan_order].mean()
+                    
+                    fig = px.imshow(
+                        cluster_means,
+                        title=f'Rata-rata Pengangguran per Pendidikan per Cluster (k={st.session_state.final_k})',
+                        color_continuous_scale='RdBu_r',
+                        aspect='auto',
+                        text_auto='.2f'
+                    )
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.info("💡 **Insight:** Heatmap menunjukkan karakteristik setiap cluster berdasarkan tingkat pendidikan")
             
             with tab4:
-                st.markdown("#### Time Series Plot per Cluster")
+                st.markdown("#### Heatmap Cluster TimeSeriesKMeans")
                 
                 if st.session_state.hasil_ts is not None:
-                    # Data untuk time series plot
-                    data = st.session_state.data
-                    data_ts = data.merge(
-                        st.session_state.hasil_ts[['nama_kabupaten_kota', 'pendidikan', 'cluster']],
-                        on=['nama_kabupaten_kota', 'pendidikan'],
-                        how='left'
+                    # Heatmap per kab/kota dan pendidikan
+                    st.markdown("##### Heatmap Cluster per Kabupaten/Kota dan Pendidikan")
+                    pivot_cluster_ts = st.session_state.hasil_ts.pivot_table(
+                        index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
                     )
                     
-                    # Plot rata-rata per cluster
-                    fig = go.Figure()
-                    
-                    for c in sorted(data_ts['cluster'].unique()):
-                        cluster_data = data_ts[data_ts['cluster'] == c]
-                        mean_by_year = cluster_data.groupby('tahun')['jumlah_pengangguran'].mean()
-                        
-                        fig.add_trace(go.Scatter(
-                            x=mean_by_year.index,
-                            y=mean_by_year.values,
-                            mode='lines+markers',
-                            name=f'Cluster {c}'
-                        ))
-                    
-                    fig.update_layout(
-                        title=f'Rata-rata Pola Pengangguran per Cluster (k={st.session_state.final_k_ts})',
-                        xaxis_title='Tahun',
-                        yaxis_title='Jumlah Pengangguran',
-                        height=400,
-                        hovermode='x unified'
+                    fig = px.imshow(
+                        pivot_cluster_ts,
+                        title=f'Cluster TimeSeriesKMeans per Kabupaten/Kota dan Pendidikan (k={st.session_state.final_k_ts})',
+                        color_continuous_scale='Plasma',
+                        aspect='auto'
                     )
+                    fig.update_layout(height=500)
                     st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Pola Time Series per Cluster
+                    st.markdown("##### Pola Rata-rata Time Series per Cluster")
+                    
+                    if st.session_state.X_ts is not None and st.session_state.tahun_order is not None:
+                        fig = go.Figure()
+                        for c in range(st.session_state.final_k_ts):
+                            idx = np.where(st.session_state.hasil_ts['cluster'] == c)[0]
+                            mean_pattern = st.session_state.X_ts[idx].mean(axis=0).ravel()
+                            fig.add_trace(go.Scatter(
+                                x=st.session_state.tahun_order,
+                                y=mean_pattern,
+                                mode='lines+markers',
+                                name=f'Cluster {c}',
+                                line=dict(width=3)
+                            ))
+                        
+                        fig.update_layout(
+                            title=f'Rata-rata Pola Deret Waktu per Cluster (k={st.session_state.final_k_ts})',
+                            xaxis_title='Tahun',
+                            yaxis_title='Jumlah Pengangguran (Normalized)',
+                            height=400,
+                            hovermode='x unified'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        st.info("💡 **Insight:** Setiap cluster menunjukkan pola waktu yang berbeda - menurun, stabil, atau meningkat")
             
             with tab5:
-                st.markdown("#### Perbandingan Algoritma")
+                st.markdown("#### Perbandingan Visualisasi")
                 
                 if st.session_state.hasil_km is not None and st.session_state.hasil_ts is not None:
                     col1, col2 = st.columns(2)
@@ -1170,34 +1333,91 @@ elif selected == "Visualisasi":
                     
                     with col2:
                         # PCA TimeSeriesKMeans
-                        if st.session_state.hasil_ts is not None:
-                            # Ambil data dari pivot_km untuk TS
-                            X_ts_flat = st.session_state.pivot_km.values
-                            pca_ts = PCA(n_components=2, random_state=42)
-                            X_pca_ts = pca_ts.fit_transform(X_ts_flat)
-                            
-                            # Match labels ke pivot
-                            labels_ts = []
-                            for idx in range(len(X_pca_ts)):
-                                kab = st.session_state.pivot_km.index[idx][0]
-                                tahun = st.session_state.pivot_km.index[idx][1]
-                                # Cari cluster dari hasil_ts (yang berdasarkan kab+pendidikan)
-                                # Untuk visualisasi, kita ambil cluster dari kab saja
-                                cluster_val = st.session_state.hasil_ts[
-                                    st.session_state.hasil_ts['nama_kabupaten_kota'] == kab
-                                ]['cluster'].mode().values[0]
-                                labels_ts.append(cluster_val)
-                            
-                            df_pca_ts = pd.DataFrame(X_pca_ts, columns=['PC1', 'PC2'])
-                            df_pca_ts['Cluster'] = labels_ts
-                            
-                            fig2 = px.scatter(
-                                df_pca_ts, x='PC1', y='PC2', color='Cluster',
-                                title=f'TimeSeriesKMeans (k={st.session_state.final_k_ts})',
-                                color_continuous_scale='Plasma'
-                            )
-                            fig2.update_layout(height=350)
-                            st.plotly_chart(fig2, use_container_width=True)
+                        X_ts_flat = st.session_state.pivot_km.values
+                        pca_ts = PCA(n_components=2, random_state=42)
+                        X_pca_ts = pca_ts.fit_transform(X_ts_flat)
+                        
+                        labels_ts = []
+                        for idx in range(len(X_pca_ts)):
+                            kab = st.session_state.pivot_km.index[idx][0]
+                            cluster_val = st.session_state.hasil_ts[
+                                st.session_state.hasil_ts['nama_kabupaten_kota'] == kab
+                            ]['cluster'].mode().values[0]
+                            labels_ts.append(cluster_val)
+                        
+                        df_pca_ts = pd.DataFrame(X_pca_ts, columns=['PC1', 'PC2'])
+                        df_pca_ts['Cluster'] = labels_ts
+                        
+                        fig2 = px.scatter(
+                            df_pca_ts, x='PC1', y='PC2', color='Cluster',
+                            title=f'TimeSeriesKMeans (k={st.session_state.final_k_ts})',
+                            color_continuous_scale='Plasma'
+                        )
+                        fig2.update_layout(height=350)
+                        st.plotly_chart(fig2, use_container_width=True)
+                    
+                    # Perbandingan Heatmap
+                    st.markdown("##### Perbandingan Heatmap Cluster")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        pivot_cluster_km = st.session_state.hasil_km.pivot_table(
+                            index='nama_kabupaten_kota', columns='tahun', values='cluster'
+                        )
+                        fig = px.imshow(
+                            pivot_cluster_km,
+                            title='K-Means',
+                            color_continuous_scale='Viridis',
+                            aspect='auto'
+                        )
+                        fig.update_layout(height=300)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        pivot_cluster_ts = st.session_state.hasil_ts.pivot_table(
+                            index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
+                        )
+                        fig = px.imshow(
+                            pivot_cluster_ts,
+                            title='TimeSeriesKMeans',
+                            color_continuous_scale='Plasma',
+                            aspect='auto'
+                        )
+                        fig.update_layout(height=300)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Distribusi Cluster
+                    st.markdown("##### Perbandingan Distribusi Cluster")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        km_counts = st.session_state.hasil_km['cluster'].value_counts().sort_index()
+                        fig = px.pie(
+                            values=km_counts.values, names=km_counts.index,
+                            title=f'K-Means Distribusi (k={st.session_state.final_k})',
+                            color_discrete_sequence=px.colors.sequential.Viridis
+                        )
+                        fig.update_layout(height=300)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        ts_counts = st.session_state.hasil_ts['cluster'].value_counts().sort_index()
+                        fig = px.pie(
+                            values=ts_counts.values, names=ts_counts.index,
+                            title=f'TimeSeriesKMeans Distribusi (k={st.session_state.final_k_ts})',
+                            color_discrete_sequence=px.colors.sequential.Plasma
+                        )
+                        fig.update_layout(height=300)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.info("""
+                    💡 **Perbandingan Visual:**
+                    - **K-Means** mengelompokkan berdasarkan jarak Euclidean antar vektor fitur
+                    - **TimeSeriesKMeans** mengelompokkan berdasarkan kesamaan pola waktu (DTW)
+                    - Perhatikan perbedaan jumlah cluster dan distribusi antar cluster
+                    """)
         else:
             st.warning("⚠️ Plotly tidak tersedia. Install dengan: pip install plotly")
     else:
@@ -1218,7 +1438,6 @@ elif selected == "Unduh Hasil":
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # CSV K-Means
             csv_km = st.session_state.hasil_km.to_csv(index=False)
             st.download_button(
                 label="📊 Unduh Hasil K-Means (CSV)",
@@ -1229,7 +1448,6 @@ elif selected == "Unduh Hasil":
             )
         
         with col2:
-            # CSV TimeSeriesKMeans
             if st.session_state.hasil_ts is not None:
                 csv_ts = st.session_state.hasil_ts.to_csv(index=False)
                 st.download_button(
@@ -1241,7 +1459,6 @@ elif selected == "Unduh Hasil":
                 )
         
         with col3:
-            # CSV Ringkasan
             if st.session_state.results_df is not None:
                 summary_data = {
                     'Algoritma': ['K-Means'],
