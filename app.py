@@ -8,7 +8,6 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.decomposition import PCA
-from scipy.stats import pearsonr
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -109,6 +108,13 @@ st.markdown("""
         border-bottom: 2px solid #ecf0f1;
         margin-bottom: 0.8rem;
     }
+    .preprocessing-box {
+        background-color: #f0f4f8;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border-left: 4px solid #2ecc71;
+        margin-bottom: 1rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -129,15 +135,9 @@ if 'data_loaded' not in st.session_state:
     
     # Hasil K-Means
     st.session_state.km_results = None
-    st.session_state.km_pivot = None
-    st.session_state.km_labels = None
-    st.session_state.km_k = None
     
     # Hasil Time Series K-Means
     st.session_state.ts_results = None
-    st.session_state.ts_pivot = None
-    st.session_state.ts_labels = None
-    st.session_state.ts_k = None
 
 # ==================== FUNGSI PREPROCESSING ====================
 
@@ -163,34 +163,93 @@ def preprocess_data(data):
     
     return data, pendidikan_order
 
-# ==================== FUNGSI K-MEANS ====================
-
-def run_kmeans(data, pendidikan_order, k_value=None):
+def get_kmeans_preprocessing(data, pendidikan_order):
     """
-    Menjalankan K-Means Clustering
-    Preprocessing: Pivot (kab/kota, tahun) x pendidikan, normalisasi GLOBAL
+    Preprocessing untuk K-Means
+    Output: (162 objek x 5 fitur) dengan normalisasi global
     """
-    # STEP 1: Pivot ke bentuk (162 objek x 5 fitur pendidikan)
-    pivot_km = data.pivot_table(
+    # Pivot: (kab/kota, tahun) x pendidikan
+    pivot = data.pivot_table(
         index=['nama_kabupaten_kota', 'tahun'],
         columns='pendidikan',
         values='jumlah_pengangguran',
         aggfunc='mean',
         observed=True
     )
-    pivot_km = pivot_km[pendidikan_order]
+    pivot = pivot[pendidikan_order]
     
-    # STEP 2: Interpolasi jika ada missing
-    if pivot_km.isnull().values.any():
-        pivot_km = pivot_km.interpolate(axis=0, limit_direction='both')
+    # Interpolasi jika ada missing
+    if pivot.isnull().values.any():
+        pivot = pivot.interpolate(axis=0, limit_direction='both')
     
-    # STEP 3: Normalisasi GLOBAL (semua nilai digabung)
+    # Normalisasi GLOBAL (semua nilai digabung)
     scaler = MinMaxScaler()
-    X_flat = pivot_km.values.reshape(-1, 1)
+    X_flat = pivot.values.reshape(-1, 1)
     X_scaled_flat = scaler.fit_transform(X_flat)
-    X = X_scaled_flat.reshape(pivot_km.shape)
+    X = X_scaled_flat.reshape(pivot.shape)
     
-    # STEP 4: Tentukan k optimal jika tidak ditentukan
+    return {
+        'pivot': pivot,
+        'X': X,
+        'scaler': scaler,
+        'shape': pivot.shape,
+        'description': f"{pivot.shape[0]} objek (kab/kota × tahun) × {pivot.shape[1]} fitur pendidikan"
+    }
+
+def get_ts_preprocessing(data, pendidikan_order, scaler_type='minmax'):
+    """
+    Preprocessing untuk Time Series K-Means
+    Output: (135 deret waktu x 6 tahun) dengan normalisasi per-deret
+    """
+    if not TSL_AVAILABLE:
+        return None
+    
+    tahun_order = sorted(data['tahun'].unique())
+    
+    # Pivot: (kab/kota, pendidikan) x tahun
+    pivot = data.pivot_table(
+        index=['nama_kabupaten_kota', 'pendidikan'],
+        columns='tahun',
+        values='jumlah_pengangguran',
+        aggfunc='mean'
+    )
+    pivot = pivot[tahun_order]
+    
+    # Interpolasi jika ada missing
+    if pivot.isnull().values.any():
+        pivot = pivot.interpolate(axis=1, limit_direction='both')
+    
+    # Bentuk array 3D untuk tslearn
+    X_ts_raw = to_time_series_dataset(pivot.values)
+    
+    # Normalisasi PER-DERET
+    if scaler_type == 'minmax':
+        scaler_ts = TimeSeriesScalerMinMax()
+    else:
+        scaler_ts = TimeSeriesScalerMeanVariance()
+    
+    X_ts = scaler_ts.fit_transform(X_ts_raw)
+    
+    return {
+        'pivot': pivot,
+        'X_ts': X_ts,
+        'X_ts_raw': X_ts_raw,
+        'scaler': scaler_ts,
+        'shape': pivot.shape,
+        'tahun_order': tahun_order,
+        'description': f"{pivot.shape[0]} deret waktu (kab/kota × pendidikan) × {pivot.shape[1]} tahun"
+    }
+
+# ==================== FUNGSI K-MEANS ====================
+
+def run_kmeans(data, pendidikan_order, k_value=None):
+    """Menjalankan K-Means Clustering"""
+    # Preprocessing K-Means
+    prep = get_kmeans_preprocessing(data, pendidikan_order)
+    X = prep['X']
+    pivot = prep['pivot']
+    
+    # Tentukan k optimal jika tidak ditentukan
     if k_value is None:
         K_range = range(2, 10)
         inertia_list = []
@@ -215,12 +274,12 @@ def run_kmeans(data, pendidikan_order, k_value=None):
         vote_counts = pd.Series([best_elbow_k, best_silhouette_k, best_dbi_k]).value_counts()
         k_value = vote_counts.index[0]
     
-    # STEP 5: Clustering final
+    # Clustering final
     kmeans_final = KMeans(n_clusters=k_value, random_state=42, n_init=10)
     labels = kmeans_final.fit_predict(X)
     
-    # STEP 6: Hasil
-    hasil = pivot_km.reset_index()
+    # Hasil
+    hasil = pivot.reset_index()
     hasil['cluster'] = labels
     
     sil_score = silhouette_score(X, labels)
@@ -230,53 +289,34 @@ def run_kmeans(data, pendidikan_order, k_value=None):
         'X': X,
         'labels': labels,
         'hasil': hasil,
-        'pivot': pivot_km,
+        'pivot': pivot,
         'k': k_value,
         'silhouette': sil_score,
         'dbi': dbi_score,
         'model': kmeans_final,
-        'scaler': scaler
+        'scaler': prep['scaler'],
+        'preprocessing': prep
     }
 
 # ==================== FUNGSI TIME SERIES K-MEANS ====================
 
 def run_timeseries_kmeans(data, pendidikan_order, k_value=None, scaler_type='minmax'):
-    """
-    Menjalankan Time Series K-Means Clustering
-    Preprocessing: Pivot (kab/kota, pendidikan) x tahun, normalisasi PER-DERET
-    """
+    """Menjalankan Time Series K-Means Clustering"""
     if not TSL_AVAILABLE:
         return None
     
-    # STEP 1: Pivot ke bentuk (135 deret waktu x 6 tahun)
-    tahun_order = sorted(data['tahun'].unique())
-    pivot_ts = data.pivot_table(
-        index=['nama_kabupaten_kota', 'pendidikan'],
-        columns='tahun',
-        values='jumlah_pengangguran',
-        aggfunc='mean'
-    )
-    pivot_ts = pivot_ts[tahun_order]
+    # Preprocessing Time Series
+    prep = get_ts_preprocessing(data, pendidikan_order, scaler_type)
+    if prep is None:
+        return None
     
-    # STEP 2: Interpolasi jika ada missing
-    if pivot_ts.isnull().values.any():
-        pivot_ts = pivot_ts.interpolate(axis=1, limit_direction='both')
-    
-    # STEP 3: Bentuk array 3D untuk tslearn
-    X_ts_raw = to_time_series_dataset(pivot_ts.values)
-    
-    # STEP 4: Normalisasi PER-DERET
-    if scaler_type == 'minmax':
-        scaler_ts = TimeSeriesScalerMinMax()
-    else:
-        scaler_ts = TimeSeriesScalerMeanVariance()
-    
-    X_ts = scaler_ts.fit_transform(X_ts_raw)
+    X_ts = prep['X_ts']
+    pivot = prep['pivot']
     X_ts_flat = X_ts.reshape(X_ts.shape[0], X_ts.shape[1])
     
-    labels_id = pivot_ts.reset_index()[['nama_kabupaten_kota', 'pendidikan']]
+    labels_id = pivot.reset_index()[['nama_kabupaten_kota', 'pendidikan']]
     
-    # STEP 5: Tentukan k optimal jika tidak ditentukan
+    # Tentukan k optimal jika tidak ditentukan
     if k_value is None:
         K_range_ts = range(2, 10)
         inertia_ts = []
@@ -313,7 +353,7 @@ def run_timeseries_kmeans(data, pendidikan_order, k_value=None, scaler_type='min
         vote_counts = pd.Series([best_elbow_k, best_sil_k, best_dbi_k]).value_counts()
         k_value = vote_counts.index[0]
     
-    # STEP 6: Clustering final
+    # Clustering final
     model_final = TimeSeriesKMeans(
         n_clusters=k_value,
         metric="dtw",
@@ -324,7 +364,7 @@ def run_timeseries_kmeans(data, pendidikan_order, k_value=None, scaler_type='min
     )
     labels = model_final.fit_predict(X_ts)
     
-    # STEP 7: Hasil
+    # Hasil
     hasil = labels_id.copy()
     hasil['cluster'] = labels
     
@@ -337,52 +377,15 @@ def run_timeseries_kmeans(data, pendidikan_order, k_value=None, scaler_type='min
         'X_ts_flat': X_ts_flat,
         'labels': labels,
         'hasil': hasil,
-        'pivot': pivot_ts,
+        'pivot': pivot,
         'k': k_value,
         'silhouette': sil_score,
         'dbi': dbi_score,
         'model': model_final,
-        'scaler': scaler_ts,
-        'tahun_order': tahun_order
+        'scaler': prep['scaler'],
+        'tahun_order': prep['tahun_order'],
+        'preprocessing': prep
     }
-
-# ==================== FUNGSI STABILITAS ====================
-
-def stability_km(X, k, random_states=[0, 1, 21, 42, 100, 123]):
-    """Analisis stabilitas K-Means"""
-    results = []
-    for rs in random_states:
-        km = KMeans(n_clusters=k, random_state=rs, n_init=10)
-        labels = km.fit_predict(X)
-        sil = silhouette_score(X, labels)
-        dbi = davies_bouldin_score(X, labels)
-        results.append({'random_state': rs, 'Silhouette': sil, 'DBI': dbi})
-    return pd.DataFrame(results)
-
-def stability_ts(X_ts, k, random_states=[0, 1, 21, 42, 100, 123]):
-    """Analisis stabilitas Time Series K-Means"""
-    if not TSL_AVAILABLE:
-        return None
-    
-    X_ts_flat = X_ts.reshape(X_ts.shape[0], X_ts.shape[1])
-    results = []
-    
-    for rs in random_states:
-        model = TimeSeriesKMeans(
-            n_clusters=k, 
-            metric="dtw", 
-            random_state=rs,
-            n_init=15, 
-            max_iter=50, 
-            n_jobs=-1
-        )
-        labels = model.fit_predict(X_ts)
-        dist = cdist_dtw(X_ts)
-        sil = silhouette_score(dist, labels, metric="precomputed")
-        dbi = davies_bouldin_score(X_ts_flat, labels)
-        results.append({'random_state': rs, 'Silhouette': sil, 'DBI': dbi})
-    
-    return pd.DataFrame(results)
 
 # ==================== SIDEBAR ====================
 
@@ -395,11 +398,11 @@ with st.sidebar:
             options=[
                 "Beranda", 
                 "Upload Dataset", 
+                "Preprocessing",
                 "Exploratory Data Analysis",
                 "K-Means Clustering", 
                 "Time Series K-Means",
                 "Komparasi", 
-                "Review Model",
                 "Visualisasi", 
                 "Unduh Hasil",
                 "Tentang"
@@ -407,11 +410,11 @@ with st.sidebar:
             icons=[
                 "house", 
                 "cloud-upload", 
+                "gear",
                 "bar-chart",
                 "diagram-3", 
                 "clock-history",
                 "shuffle", 
-                "check-circle",
                 "graph-up", 
                 "download",
                 "info-circle"
@@ -429,10 +432,9 @@ with st.sidebar:
         )
     else:
         menu_options = [
-            "Beranda", "Upload Dataset", "Exploratory Data Analysis",
+            "Beranda", "Upload Dataset", "Preprocessing", "Exploratory Data Analysis",
             "K-Means Clustering", "Time Series K-Means",
-            "Komparasi", "Review Model", "Visualisasi", 
-            "Unduh Hasil", "Tentang"
+            "Komparasi", "Visualisasi", "Unduh Hasil", "Tentang"
         ]
         selected = st.selectbox("Pilih Menu", menu_options)
 
@@ -453,11 +455,11 @@ if selected == "Beranda":
         
         #### 🔍 Fitur Utama:
         1. **Upload Dataset** - Unggah file Excel
-        2. **EDA** - Analisis eksploratif data
-        3. **K-Means** - Clustering dengan K-Means
-        4. **Time Series K-Means** - Clustering dengan DTW
-        5. **Komparasi** - Perbandingan kedua algoritma
-        6. **Review Model** - Evaluasi stabilitas
+        2. **Preprocessing** - Lihat proses preprocessing kedua model
+        3. **EDA** - Analisis eksploratif data
+        4. **K-Means** - Clustering dengan K-Means
+        5. **Time Series K-Means** - Clustering dengan DTW
+        6. **Komparasi** - Perbandingan kedua algoritma
         7. **Visualisasi** - Visualisasi interaktif
         8. **Unduh Hasil** - Download hasil
         """)
@@ -524,7 +526,6 @@ if selected == "Beranda":
                 st.success(f"✅ Dataset contoh dimuat! {len(df_sample):,} baris")
                 st.rerun()
     
-    # Status data
     if st.session_state.data_loaded:
         st.success("✅ Dataset telah dimuat!")
         st.dataframe(st.session_state.df.head(), use_container_width=True)
@@ -588,6 +589,90 @@ elif selected == "Upload Dataset":
         else:
             st.info("Belum ada dataset. Silakan upload file Excel.")
 
+# ==================== MENU: PREPROCESSING ====================
+
+elif selected == "Preprocessing":
+    st.markdown('<div class="sub-header">⚙️ Preprocessing Data</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.data_loaded:
+        st.warning("⚠️ Upload dataset terlebih dahulu.")
+    else:
+        df = st.session_state.df
+        pendidikan_order = st.session_state.pendidikan_order
+        
+        st.markdown("""
+        <div class="preprocessing-box">
+            <h4>📌 Perbedaan Preprocessing K-Means vs Time Series K-Means</h4>
+            <ul>
+                <li><strong>K-Means:</strong> Pivot <code>(kab/kota, tahun) × pendidikan</code> → Normalisasi GLOBAL</li>
+                <li><strong>Time Series K-Means:</strong> Pivot <code>(kab/kota, pendidikan) × tahun</code> → Normalisasi PER-DERET</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["📊 K-Means Preprocessing", "⏱️ Time Series Preprocessing"])
+        
+        with tab1:
+            st.markdown("#### Preprocessing untuk K-Means")
+            
+            prep_km = get_kmeans_preprocessing(df, pendidikan_order)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Dimensi Data", prep_km['description'])
+            with col2:
+                st.metric("Shape", f"{prep_km['shape'][0]} × {prep_km['shape'][1]}")
+            
+            st.markdown("##### 📋 Pivot Table (Sebelum Normalisasi)")
+            st.dataframe(prep_km['pivot'].head(10), use_container_width=True)
+            
+            st.markdown("##### 📊 Data Setelah Normalisasi Global")
+            df_normalized = pd.DataFrame(
+                prep_km['X'],
+                index=prep_km['pivot'].index,
+                columns=prep_km['pivot'].columns
+            )
+            st.dataframe(df_normalized.head(10), use_container_width=True)
+            
+            st.info("""
+            **💡 Penjelasan:**
+            - Data di-pivot menjadi 162 objek (27 kab/kota × 6 tahun) dengan 5 fitur pendidikan
+            - Normalisasi GLOBAL: semua nilai (162×5 = 810 nilai) digabung lalu dinormalisasi MinMax
+            - Tujuan: mempertahankan perbedaan skala antar jenjang pendidikan
+            """)
+        
+        with tab2:
+            st.markdown("#### Preprocessing untuk Time Series K-Means")
+            
+            if not TSL_AVAILABLE:
+                st.error("⚠️ tslearn tidak tersedia.")
+            else:
+                prep_ts = get_ts_preprocessing(df, pendidikan_order, 'minmax')
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Dimensi Data", prep_ts['description'])
+                with col2:
+                    st.metric("Shape", f"{prep_ts['shape'][0]} × {prep_ts['shape'][1]}")
+                
+                st.markdown("##### 📋 Pivot Table (Sebelum Normalisasi)")
+                st.dataframe(prep_ts['pivot'].head(10), use_container_width=True)
+                
+                st.markdown("##### 📊 Data Setelah Normalisasi Per-Deret")
+                df_normalized = pd.DataFrame(
+                    prep_ts['X_ts'].reshape(prep_ts['shape'][0], prep_ts['shape'][1]),
+                    index=prep_ts['pivot'].index,
+                    columns=prep_ts['pivot'].columns
+                )
+                st.dataframe(df_normalized.head(10), use_container_width=True)
+                
+                st.info("""
+                **💡 Penjelasan:**
+                - Data di-pivot menjadi 135 deret waktu (27 kab/kota × 5 pendidikan) dengan 6 tahun
+                - Normalisasi PER-DERET: masing-masing deret dinormalisasi sendiri (MinMax)
+                - Tujuan: mempertahankan BENTUK/POLA waktu, bukan nilai absolut
+                """)
+
 # ==================== MENU: EDA ====================
 
 elif selected == "Exploratory Data Analysis":
@@ -598,7 +683,6 @@ elif selected == "Exploratory Data Analysis":
     else:
         df = st.session_state.df
         
-        # Ringkasan
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Wilayah", df['nama_kabupaten_kota'].nunique())
@@ -609,18 +693,15 @@ elif selected == "Exploratory Data Analysis":
         with col4:
             st.metric("Total Data", len(df))
         
-        # Statistik
         st.markdown("#### Statistik Deskriptif")
         st.dataframe(df['jumlah_pengangguran'].describe(), use_container_width=True)
         
-        # Visualisasi
         if PLOTLY_AVAILABLE:
             st.markdown("#### Visualisasi")
             
             col1, col2 = st.columns(2)
             
             with col1:
-                # Tren per pendidikan
                 fig = px.line(
                     df, x='tahun', y='jumlah_pengangguran',
                     color='pendidikan', title='Tren Pengangguran per Pendidikan'
@@ -629,7 +710,6 @@ elif selected == "Exploratory Data Analysis":
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                # Boxplot per tahun
                 fig = px.box(
                     df, x='tahun', y='jumlah_pengangguran',
                     title='Distribusi Pengangguran per Tahun'
@@ -637,7 +717,6 @@ elif selected == "Exploratory Data Analysis":
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
             
-            # Heatmap
             pivot = df.pivot_table(
                 index='pendidikan', columns='tahun',
                 values='jumlah_pengangguran', aggfunc='mean'
@@ -692,7 +771,6 @@ elif selected == "K-Means Clustering":
                 except Exception as e:
                     st.error(f"Error: {e}")
         
-        # Tampilkan hasil
         if st.session_state.km_results is not None:
             results = st.session_state.km_results
             
@@ -766,7 +844,6 @@ elif selected == "Time Series K-Means":
                 except Exception as e:
                     st.error(f"Error: {e}")
         
-        # Tampilkan hasil
         if st.session_state.ts_results is not None:
             results = st.session_state.ts_results
             
@@ -796,7 +873,6 @@ elif selected == "Komparasi":
     if km is None and ts is None:
         st.warning("⚠️ Jalankan K-Means dan/atau Time Series K-Means terlebih dahulu.")
     else:
-        # Tabel perbandingan
         data = []
         if km is not None:
             data.append({
@@ -816,7 +892,6 @@ elif selected == "Komparasi":
         df_comp = pd.DataFrame(data)
         st.dataframe(df_comp, use_container_width=True)
         
-        # Visualisasi perbandingan
         if PLOTLY_AVAILABLE and len(data) > 1:
             fig = go.Figure()
             for row in data:
@@ -832,7 +907,6 @@ elif selected == "Komparasi":
             )
             st.plotly_chart(fig, use_container_width=True)
         
-        # Kesimpulan
         if km is not None and ts is not None:
             if km['silhouette'] > ts['silhouette']:
                 better = "K-Means"
@@ -846,64 +920,6 @@ elif selected == "Komparasi":
             - **Time Series K-Means:** k={ts['k']}, Silhouette={ts['silhouette']:.4f}
             - **Terbaik:** {better} memiliki Silhouette Score lebih tinggi
             """)
-
-# ==================== MENU: REVIEW MODEL ====================
-
-elif selected == "Review Model":
-    st.markdown('<div class="sub-header">✅ Review Model</div>', unsafe_allow_html=True)
-    
-    km = st.session_state.km_results
-    ts = st.session_state.ts_results
-    
-    st.markdown("""
-    Review model mengevaluasi stabilitas clustering dengan berbagai `random_state`.
-    Model yang stabil memiliki std Silhouette < 0.03.
-    """)
-    
-    tab1, tab2 = st.tabs(["K-Means", "Time Series K-Means"])
-    
-    with tab1:
-        if km is None:
-            st.warning("⚠️ Jalankan K-Means terlebih dahulu.")
-        else:
-            if st.button("🔄 Analisis Stabilitas K-Means"):
-                with st.spinner("Menganalisis..."):
-                    df_stab = stability_km(km['X'], km['k'])
-                    st.dataframe(df_stab, use_container_width=True)
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Rata-rata Silhouette", f"{df_stab['Silhouette'].mean():.4f}")
-                    with col2:
-                        st.metric("Std Silhouette", f"{df_stab['Silhouette'].std():.4f}")
-                    
-                    if df_stab['Silhouette'].std() < 0.03:
-                        st.success("✅ Model stabil (std < 0.03)")
-                    else:
-                        st.warning("⚠️ Model kurang stabil")
-    
-    with tab2:
-        if not TSL_AVAILABLE:
-            st.error("⚠️ tslearn tidak tersedia.")
-        elif ts is None:
-            st.warning("⚠️ Jalankan Time Series K-Means terlebih dahulu.")
-        else:
-            if st.button("🔄 Analisis Stabilitas Time Series K-Means"):
-                with st.spinner("Menganalisis..."):
-                    df_stab = stability_ts(ts['X_ts'], ts['k'])
-                    if df_stab is not None:
-                        st.dataframe(df_stab, use_container_width=True)
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Rata-rata Silhouette", f"{df_stab['Silhouette'].mean():.4f}")
-                        with col2:
-                            st.metric("Std Silhouette", f"{df_stab['Silhouette'].std():.4f}")
-                        
-                        if df_stab['Silhouette'].std() < 0.03:
-                            st.success("✅ Model stabil (std < 0.03)")
-                        else:
-                            st.warning("⚠️ Model kurang stabil")
 
 # ==================== MENU: VISUALISASI ====================
 
@@ -1061,7 +1077,6 @@ elif selected == "Tentang":
             <li><strong>K-Means:</strong> Normalisasi global, Euclidean distance</li>
             <li><strong>Time Series K-Means:</strong> Normalisasi per-deret, DTW distance</li>
             <li><strong>Evaluasi:</strong> Silhouette Score, Davies-Bouldin Index</li>
-            <li><strong>Stabilitas:</strong> Multi random_state</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
