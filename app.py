@@ -35,7 +35,6 @@ try:
     TSKLEARN_AVAILABLE = True
 except ImportError:
     TSKLEARN_AVAILABLE = False
-    st.warning("⚠️ tslearn tidak tersedia. Install dengan: pip install tslearn")
 
 # Konfigurasi halaman
 st.set_page_config(
@@ -149,6 +148,89 @@ st.markdown("""
         border-bottom: 2px solid #ecf0f1;
         margin-bottom: 0.8rem;
     }
+    .hero-section {
+        background: linear-gradient(135deg, #1f77b4 0%, #2c3e50 100%);
+        padding: 2.5rem;
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    .hero-section h1 {
+        font-size: 2.2rem;
+        margin-bottom: 0.5rem;
+    }
+    .hero-section p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        max-width: 700px;
+        margin: 0 auto;
+    }
+    .feature-card {
+        background-color: white;
+        padding: 1.8rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        text-align: center;
+        height: 100%;
+        border-top: 4px solid #1f77b4;
+        transition: transform 0.2s;
+    }
+    .feature-card:hover {
+        transform: translateY(-4px);
+    }
+    .feature-icon {
+        font-size: 2.8rem;
+        margin-bottom: 0.8rem;
+    }
+    .feature-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+    .feature-desc {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        line-height: 1.5;
+    }
+    .step-card {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 10px;
+        text-align: center;
+        border-left: 4px solid #1f77b4;
+    }
+    .step-number {
+        display: inline-block;
+        background-color: #1f77b4;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        line-height: 32px;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-ready {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    .status-processing {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    .status-done {
+        background-color: #cce5ff;
+        color: #004085;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -180,6 +262,8 @@ if 'results_df' not in st.session_state:
     st.session_state.results_df = None
 if 'results_ts_df' not in st.session_state:
     st.session_state.results_ts_df = None
+if 'analysis_done' not in st.session_state:
+    st.session_state.analysis_done = False
 
 # Sidebar untuk menu
 with st.sidebar:
@@ -376,131 +460,268 @@ def run_timeseries_clustering(data, pendidikan_order, K_range=range(2, 10)):
     
     return hasil_ts, X_ts, X_ts_flat, results_ts_df, final_k_ts, tahun_order
 
-# ==================== BERANDA ====================
+# ==================== BERANDA (LANDING PAGE) ====================
 if selected == "Beranda":
-    st.markdown('<div class="sub-header">📊 Sistem Komparasi Clustering Pengangguran Terbuka Berdasarkan Tingkat Pendidikan di Jawa Barat</div>', unsafe_allow_html=True)
-    st.caption("Aplikasi ini digunakan untuk melakukan analisis clustering menggunakan algoritma K-Means dan TimeSeriesKMeans serta membandingkan hasil kedua algoritma.")
+    # Hero Section
+    st.markdown("""
+    <div class="hero-section">
+        <h1>📊 Selamat Datang di Sistem Komparasi Clustering</h1>
+        <p>Sistem ini dirancang untuk membantu Anda menganalisis dan membandingkan hasil clustering 
+        data pengangguran terbuka di Jawa Barat menggunakan algoritma <strong>K-Means</strong> dan 
+        <strong>TimeSeriesKMeans</strong>.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    col_left, col_right = st.columns([1, 1.25], gap="large")
-
-    with col_left:
-        st.markdown('<div class="section-title">1. Upload Dataset</div>', unsafe_allow_html=True)
-        
-        uploaded_file = st.file_uploader(
-            "Pilih file XLSX", type=['xlsx'], label_visibility="collapsed", key="home_uploader"
-        )
-        
-        if uploaded_file is not None:
-            try:
-                df_home = pd.read_excel(uploaded_file)
-                st.success(f"✅ File berhasil diupload! {len(df_home)} baris data")
-                
-                # Preprocessing
-                data_home, pendidikan_order_home = preprocess_data(df_home)
-                pivot_km_home = create_pivot_km(data_home, pendidikan_order_home)
-                pivot_km_scaled_home, X_home, _ = normalize_data(pivot_km_home)
-                
-                st.session_state.data = data_home
-                st.session_state.pivot_km = pivot_km_home
-                st.session_state.X = X_home
-                st.session_state.pendidikan_order = pendidikan_order_home
-                
-                st.dataframe(pivot_km_home.head(3), use_container_width=True, height=140)
-                st.markdown(f"""
-                    <div style="background-color: #f8f9fa; padding: 0.6rem 1rem; border-radius: 5px; margin-top: 0.4rem; font-size: 0.85rem;">
-                        <strong>Jumlah Baris:</strong> {len(pivot_km_home):,}&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Jumlah Kolom:</strong> {len(pivot_km_home.columns)}
-                    </div>
-                """, unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"Error membaca file: {e}")
-        else:
-            st.info("📁 Silakan upload file dataset untuk memulai analisis")
+    # Status Ringkasan
+    col_status1, col_status2, col_status3, col_status4 = st.columns(4)
+    
+    with col_status1:
+        if st.session_state.data is not None:
             st.markdown("""
-                <div style="background-color: #f8f9fa; padding: 0.6rem 1rem; border-radius: 5px; margin-top: 0.4rem; font-size: 0.85rem;">
-                    <strong>Format yang diharapkan:</strong> Kolom: nama_kabupaten_kota, tahun, pendidikan, jumlah_pengangguran
-                </div>
+            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
+                <div style="font-size: 1.8rem;">✅</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Dataset Terupload</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">{} baris</div>
+            </div>
+            """.format(len(st.session_state.data)), unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
+                <div style="font-size: 1.8rem;">⏳</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Belum Upload</div>
+                <div style="font-size: 0.75rem; color: #95a5a6;">Upload dataset</div>
+            </div>
             """, unsafe_allow_html=True)
+    
+    with col_status2:
+        if st.session_state.X is not None:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
+                <div style="font-size: 1.8rem;">✅</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Preprocessing Selesai</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">{} objek x {} fitur</div>
+            </div>
+            """.format(st.session_state.X.shape[0], st.session_state.X.shape[1]), unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
+                <div style="font-size: 1.8rem;">⏳</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Preprocessing</div>
+                <div style="font-size: 0.75rem; color: #95a5a6;">Menunggu upload</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col_status3:
+        if st.session_state.hasil_km is not None:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
+                <div style="font-size: 1.8rem;">✅</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Clustering K-Means</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">k={} cluster</div>
+            </div>
+            """.format(st.session_state.final_k), unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
+                <div style="font-size: 1.8rem;">⏳</div>
+                <div class="stat-label" style="font-size: 0.85rem;">K-Means</div>
+                <div style="font-size: 0.75rem; color: #95a5a6;">Belum dijalankan</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col_status4:
+        if st.session_state.hasil_ts is not None:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
+                <div style="font-size: 1.8rem;">✅</div>
+                <div class="stat-label" style="font-size: 0.85rem;">TimeSeriesKMeans</div>
+                <div style="font-size: 0.75rem; color: #27ae60;">k={} cluster</div>
+            </div>
+            """.format(st.session_state.final_k_ts), unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
+                <div style="font-size: 1.8rem;">⏳</div>
+                <div class="stat-label" style="font-size: 0.85rem;">TimeSeriesKMeans</div>
+                <div style="font-size: 0.75rem; color: #95a5a6;">Belum dijalankan</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # ==================== FITUR UTAMA ====================
+    st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">🚀 Fitur Utama Aplikasi</h3>', unsafe_allow_html=True)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📤</div>
+            <div class="feature-title">Upload Dataset</div>
+            <div class="feature-desc">Upload file Excel (.xlsx) data pengangguran terbuka di Jawa Barat</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Exploratory Data Analysis</div>
+            <div class="feature-desc">Analisis eksploratif data dengan visualisasi tren, distribusi, dan korelasi</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <div class="feature-title">Clustering</div>
+            <div class="feature-desc">Jalankan K-Means dan TimeSeriesKMeans dengan optimasi cluster otomatis</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📈</div>
+            <div class="feature-title">Visualisasi & Komparasi</div>
+            <div class="feature-desc">Lihat visualisasi hasil dan bandingkan performa kedua algoritma</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # ==================== LANGKAH PENGGUNAAN ====================
+    st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">📋 Cara Penggunaan</h3>', unsafe_allow_html=True)
+    
+    col_step1, col_step2, col_step3, col_step4 = st.columns(4)
+    
+    with col_step1:
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">1</div>
+            <h4>Upload Dataset</h4>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Unggah file Excel berisi data pengangguran terbuka per kab/kota, tahun, dan pendidikan</p>
+            <span class="status-badge status-{}">{} </span>
+        </div>
+        """.format(
+            "done" if st.session_state.data is not None else "ready",
+            "Selesai" if st.session_state.data is not None else "Belum"
+        ), unsafe_allow_html=True)
+    
+    with col_step2:
+        status = "done" if st.session_state.X is not None else "ready"
+        label = "Selesai" if st.session_state.X is not None else "Belum"
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">2</div>
+            <h4>EDA & Preprocessing</h4>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Lihat analisis eksploratif data dan preprocessing otomatis (penggabungan kategori, normalisasi)</p>
+            <span class="status-badge status-{}">{} </span>
+        </div>
+        """.format(status, label), unsafe_allow_html=True)
+    
+    with col_step3:
+        status = "done" if st.session_state.hasil_km is not None else "ready"
+        label = "Selesai" if st.session_state.hasil_km is not None else "Belum"
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">3</div>
+            <h4>Jalankan Clustering</h4>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Pilih algoritma (K-Means / TimeSeriesKMeans) dan jalankan analisis clustering</p>
+            <span class="status-badge status-{}">{} </span>
+        </div>
+        """.format(status, label), unsafe_allow_html=True)
+    
+    with col_step4:
+        status = "done" if st.session_state.hasil_km is not None and st.session_state.hasil_ts is not None else "ready"
+        label = "Selesai" if st.session_state.hasil_km is not None and st.session_state.hasil_ts is not None else "Belum"
+        st.markdown("""
+        <div class="step-card">
+            <div class="step-number">4</div>
+            <h4>Komparasi & Unduh</h4>
+            <p style="color: #7f8c8d; font-size: 0.85rem;">Bandingkan hasil kedua algoritma dan unduh hasil analisis dalam format CSV</p>
+            <span class="status-badge status-{}">{} </span>
+        </div>
+        """.format(status, label), unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # ==================== INFORMASI DATASET ====================
+    st.markdown('<h3 style="text-align: center; margin-bottom: 1rem;">📋 Informasi Dataset</h3>', unsafe_allow_html=True)
+    
+    col_info1, col_info2 = st.columns([1, 1])
+    
+    with col_info1:
+        st.markdown("""
+        <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
+            <h4>📌 Format Dataset</h4>
+            <ul>
+                <li><strong>nama_kabupaten_kota</strong> - Nama kabupaten/kota di Jawa Barat</li>
+                <li><strong>tahun</strong> - Tahun (2020 - 2025)</li>
+                <li><strong>pendidikan</strong> - Tingkat pendidikan</li>
+                <li><strong>jumlah_pengangguran</strong> - Jumlah pengangguran</li>
+            </ul>
+            <br>
+            <h4>📊 Struktur Data</h4>
+            <ul>
+                <li><strong>27</strong> Kabupaten/Kota</li>
+                <li><strong>6</strong> Tahun (2020-2025)</li>
+                <li><strong>5</strong> Kategori Pendidikan</li>
+                <li><strong>162</strong> Total Observasi</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_info2:
+        st.markdown("""
+        <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
+            <h4>🎯 Algoritma Clustering</h4>
+            <ul>
+                <li><strong>K-Means</strong> - Algoritma clustering berbasis jarak Euclidean</li>
+                <li><strong>TimeSeriesKMeans</strong> - Algoritma clustering berbasis DTW (Dynamic Time Warping)</li>
+            </ul>
+            <br>
+            <h4>📈 Metrik Evaluasi</h4>
+            <ul>
+                <li><strong>Elbow Method</strong> - Menentukan jumlah cluster optimal</li>
+                <li><strong>Silhouette Score</strong> - Mengukur kualitas clustering</li>
+                <li><strong>Davies-Bouldin Index</strong> - Mengukur separasi antar cluster</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ==================== QUICK START ====================
+    if st.session_state.data is None:
+        st.markdown("---")
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem; background-color: #e8f4f8; border-radius: 10px;">
+            <h4>🚀 Mulai Analisis Sekarang</h4>
+            <p style="color: #5a6a7a;">Upload dataset Anda melalui menu <strong>Upload Dataset</strong> untuk memulai analisis clustering</p>
+            <div style="margin-top: 0.5rem;">
+                <span style="font-size: 0.85rem; background-color: #1f77b4; color: white; padding: 0.3rem 1.5rem; border-radius: 20px;">→ Upload Dataset</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("---")
+        col_quick1, col_quick2, col_quick3 = st.columns(3)
         
-        if st.session_state.data is not None:
-            st.markdown('<div class="section-title" style="margin-top:1.5rem;">4. Hasil Clustering</div>', unsafe_allow_html=True)
-            
-            if st.button("▶ Jalankan Analisis", use_container_width=True, key="run_home"):
-                with st.spinner("Sedang menganalisis data..."):
-                    # Jalankan K-Means
-                    results_df, final_k, _, _, _ = run_kmeans_clustering(st.session_state.X)
-                    st.session_state.results_df = results_df
-                    st.session_state.final_k = final_k
-                    
-                    # K-Means final
-                    kmeans_final = KMeans(n_clusters=final_k, random_state=42, n_init=10)
-                    final_labels_km = kmeans_final.fit_predict(st.session_state.X)
-                    
-                    hasil_km = st.session_state.pivot_km.reset_index()
-                    hasil_km['cluster'] = final_labels_km
-                    st.session_state.hasil_km = hasil_km
-                    
-                    # TimeSeries K-Means
-                    if TSKLEARN_AVAILABLE and st.session_state.data is not None:
-                        hasil_ts, X_ts, X_ts_flat, results_ts_df, final_k_ts, _ = run_timeseries_clustering(
-                            st.session_state.data, st.session_state.pendidikan_order
-                        )
-                        st.session_state.hasil_ts = hasil_ts
-                        st.session_state.results_ts_df = results_ts_df
-                        st.session_state.final_k_ts = final_k_ts
-                
-                st.success("✅ Analisis clustering selesai!")
-                
-                # Tampilkan ringkasan hasil
-                result_data = {
-                    "Algoritma": ["K-Means", "TimeSeriesKMeans"] if TSKLEARN_AVAILABLE else ["K-Means"],
-                    "Cluster Terbaik": [final_k, st.session_state.final_k_ts] if TSKLEARN_AVAILABLE else [final_k],
-                    "Silhouette Score": [
-                        results_df.loc[results_df['Jumlah Cluster'] == final_k, 'Silhouette Score'].values[0],
-                        st.session_state.results_ts_df.loc[st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts, 'Silhouette Score (DTW)'].values[0]
-                    ] if TSKLEARN_AVAILABLE else [results_df.loc[results_df['Jumlah Cluster'] == final_k, 'Silhouette Score'].values[0]],
-                }
-                st.dataframe(pd.DataFrame(result_data), use_container_width=True, hide_index=True)
-
-    with col_right:
-        if st.session_state.data is not None:
-            st.markdown('<div class="section-title">2. Ringkasan Data</div>', unsafe_allow_html=True)
-            
-            data = st.session_state.data
-            r1, r2, r3, r4 = st.columns(4)
-            
-            stats = [
-                (data['nama_kabupaten_kota'].nunique(), "Jumlah Wilayah", "Kab/Kota", "#3498db"),
-                (data['pendidikan'].nunique(), "Jumlah Pendidikan", "Kategori", "#2ecc71"),
-                (len(data['tahun'].unique()), "Jumlah Tahun", "(2020 - 2025)", "#e67e22"),
-                (len(data), "Total Observasi", "Baris Data", "#e74c3c"),
-            ]
-            
-            for col, (num, label, sub, color) in zip([r1, r2, r3, r4], stats):
-                with col:
-                    st.markdown(f"""
-                        <div class="stat-card" style="border-left-color: {color}; padding: 0.9rem; margin-bottom:0;">
-                            <div class="stat-number" style="font-size:1.3rem;">{num}</div>
-                            <div class="stat-label" style="font-size:0.75rem;">{label}</div>
-                            <div class="stat-label" style="font-size:0.7rem; margin-top:0;">{sub}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-            
-            st.markdown('<div class="section-title" style="margin-top:1.5rem;">3. Pilih Algoritma</div>', unsafe_allow_html=True)
-            a1, a2 = st.columns([1.3, 1])
-            with a1:
-                st.markdown("**Pilih Algoritma Clustering**")
-                algorithm_home = st.radio(
-                    "Algoritma", ["K-Means", "TimeSeriesKMeans (DTW)", "Komparasi Kedua Algoritma"],
-                    index=0, label_visibility="collapsed", key="algo_home"
-                )
-            with a2:
-                st.markdown("**Jumlah Cluster (k)**")
-                k_method_home = st.radio(
-                    "Metode k", ["Otomatis (Rekomendasi)", "Manual"],
-                    index=0, label_visibility="collapsed", key="k_method_home"
-                )
-                if k_method_home == "Manual":
-                    st.number_input("Jumlah Cluster", min_value=2, max_value=10, value=3, key="k_manual_home")
+        with col_quick1:
+            if st.button("📊 EDA", use_container_width=True):
+                st.switch_page("app.py")  # Arahkan ke menu EDA
+                selected = "Exploratory Data Analysis"
+        
+        with col_quick2:
+            if st.button("🎯 Jalankan Clustering", use_container_width=True):
+                st.switch_page("app.py")
+                selected = "Clustering"
+        
+        with col_quick3:
+            if st.button("📥 Unduh Hasil", use_container_width=True):
+                st.switch_page("app.py")
+                selected = "Unduh Hasil"
 
 # ==================== UPLOAD DATASET ====================
 elif selected == "Upload Dataset":
