@@ -234,6 +234,25 @@ st.markdown("""
         background-color: #cce5ff;
         color: #004085;
     }
+    .algo-card {
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        border-left: 4px solid #1f77b4;
+    }
+    .algo-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+    .algo-desc {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        line-height: 1.5;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -311,10 +330,6 @@ def preprocess_data(df):
     data = data[(data['tahun'] >= 2017) & (data['tahun'] <= 2025)]
     
     # Gabung kategori pendidikan dengan konsisten
-    # Untuk tahun 2017-2019: data mungkin memiliki kategori berbeda
-    # Kita gabungkan semua SMA menjadi satu kategori
-    
-    # Mapping pendidikan yang konsisten
     pendidikan_mapping = {
         'TIDAK/BELUM PERNAH SEKOLAH/TIDAK/BELUM TAMAT SD': 'SD KE BAWAH',
         'SD': 'SD KE BAWAH',
@@ -374,11 +389,10 @@ def create_timeseries_data(data, pendidikan_order):
         pivot_ts = pivot_ts.interpolate(axis=1, limit_direction='both')
     
     # Bentuk array time series 3D (n_samples x n_timesteps x n_features)
-    # n_samples = 27 kabupaten/kota
+    # n_samples = 27 kabupaten/kota * 4 pendidikan = 108
     # n_timesteps = 9 tahun (2017-2025)
-    # n_features = 4 pendidikan
+    # n_features = 1 (jumlah pengangguran)
     
-    # Reshape: (27 x 4) x 9 tahun -> untuk setiap kab, kita punya 4 series (per pendidikan)
     X_ts_raw = to_time_series_dataset(pivot_ts.values)
     
     # Normalisasi per-deret
@@ -389,12 +403,11 @@ def create_timeseries_data(data, pendidikan_order):
     
     return X_ts, labels_id, tahun_order, pivot_ts
 
-def evaluate_timeseries_clustering(X_ts, K_range=range(2, 10)):
+def evaluate_timeseries_clustering(X_ts, K_range=range(2, 8)):
     """Evaluasi TimeSeriesKMeans clustering dengan DTW"""
     inertia_ts = []
     silhouette_ts = []
     dbi_ts = []
-    labels_list = []
     
     for k in K_range:
         model = TimeSeriesKMeans(
@@ -406,7 +419,6 @@ def evaluate_timeseries_clustering(X_ts, K_range=range(2, 10)):
             n_jobs=-1
         )
         labels_k = model.fit_predict(X_ts)
-        labels_list.append(labels_k)
         inertia_ts.append(model.inertia_)
         
         # Silhouette dengan DTW distance matrix
@@ -450,14 +462,13 @@ def evaluate_timeseries_clustering(X_ts, K_range=range(2, 10)):
     
     return results_ts_df, final_k_ts, final_labels_ts
 
-def evaluate_hac_clustering(X_ts, K_range=range(2, 10)):
+def evaluate_hac_clustering(X_ts, K_range=range(2, 8)):
     """Evaluasi Hierarchical Agglomerative Clustering dengan DTW"""
     # Hitung DTW distance matrix
     dist_matrix = cdist_dtw(X_ts)
     
     silhouette_hac = []
     dbi_hac = []
-    labels_list = []
     
     for k in K_range:
         hac = AgglomerativeClustering(
@@ -466,7 +477,6 @@ def evaluate_hac_clustering(X_ts, K_range=range(2, 10)):
             linkage='average'
         )
         labels_k = hac.fit_predict(dist_matrix)
-        labels_list.append(labels_k)
         
         sil = silhouette_score(dist_matrix, labels_k, metric="precomputed")
         silhouette_hac.append(sil)
@@ -527,12 +537,15 @@ if selected == "Beranda":
     st.markdown("""
     <div class="hero-section">
         <h1>📊 Selamat Datang di Sistem Komparasi Clustering</h1>
-        <p>Sistem ini membandingkan dua algoritma clustering berbasis DTW untuk data pengangguran terbuka di Jawa Barat:
-        <br><strong>TimeSeriesKMeans</strong> dan <strong>Hierarchical Agglomerative Clustering</strong>.</p>
+        <p>Sistem ini membandingkan dua algoritma clustering berbasis DTW untuk data pengangguran terbuka di Jawa Barat:</p>
+        <p style="margin-top: 0.5rem;">
+            <span style="background: #3498db; padding: 0.3rem 1rem; border-radius: 20px; margin: 0 0.3rem;">TimeSeriesKMeans</span>
+            <span style="background: #e74c3c; padding: 0.3rem 1rem; border-radius: 20px; margin: 0 0.3rem;">Hierarchical Agglomerative</span>
+        </p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Status Ringkasan
+    # Status Ringkasan - DIPISAHKAN DENGAN JELAS
     col_status1, col_status2, col_status3, col_status4 = st.columns(4)
     
     with col_status1:
@@ -574,10 +587,10 @@ if selected == "Beranda":
     with col_status3:
         if st.session_state.hasil_ts is not None:
             st.markdown(f"""
-            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
+            <div class="stat-card" style="border-left-color: #3498db; text-align: center;">
                 <div style="font-size: 1.8rem;">✅</div>
                 <div class="stat-label" style="font-size: 0.85rem;">TimeSeriesKMeans</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">k={st.session_state.final_k_ts} cluster</div>
+                <div style="font-size: 0.75rem; color: #3498db;">k={st.session_state.final_k_ts} cluster</div>
             </div>
             """, unsafe_allow_html=True)
         else:
@@ -592,20 +605,63 @@ if selected == "Beranda":
     with col_status4:
         if st.session_state.hasil_hac is not None:
             st.markdown(f"""
-            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
+            <div class="stat-card" style="border-left-color: #e74c3c; text-align: center;">
                 <div style="font-size: 1.8rem;">✅</div>
-                <div class="stat-label" style="font-size: 0.85rem;">HAC dengan DTW</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">k={st.session_state.final_k_hac} cluster</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Hierarchical Agglomerative</div>
+                <div style="font-size: 0.75rem; color: #e74c3c;">k={st.session_state.final_k_hac} cluster</div>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
                 <div style="font-size: 1.8rem;">⏳</div>
-                <div class="stat-label" style="font-size: 0.85rem;">HAC dengan DTW</div>
+                <div class="stat-label" style="font-size: 0.85rem;">Hierarchical Agglomerative</div>
                 <div style="font-size: 0.75rem; color: #95a5a6;">Belum dijalankan</div>
             </div>
             """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Penjelasan Algoritma - DIPISAHKAN
+    st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">🤖 Algoritma Clustering yang Dibandingkan</h3>', unsafe_allow_html=True)
+    
+    col_algo1, col_algo2 = st.columns(2)
+    
+    with col_algo1:
+        st.markdown("""
+        <div class="algo-card" style="border-left-color: #3498db;">
+            <div class="algo-title" style="color: #3498db;">📌 TimeSeriesKMeans</div>
+            <div class="algo-desc">
+                <p><strong>Metode:</strong> K-Means berbasis Dynamic Time Warping (DTW)</p>
+                <p><strong>Karakteristik:</strong></p>
+                <ul>
+                    <li>Prototype-based clustering</li>
+                    <li>Efisien untuk data berukuran besar</li>
+                    <li>Menghasilkan centroid untuk interpretasi</li>
+                    <li>Menggunakan DTW sebagai distance metric</li>
+                </ul>
+                <p><strong>Keunggulan:</strong> Cepat, scalable, mudah diinterpretasi</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_algo2:
+        st.markdown("""
+        <div class="algo-card" style="border-left-color: #e74c3c;">
+            <div class="algo-title" style="color: #e74c3c;">📌 Hierarchical Agglomerative Clustering</div>
+            <div class="algo-desc">
+                <p><strong>Metode:</strong> Agglomerative Clustering dengan DTW distance matrix</p>
+                <p><strong>Karakteristik:</strong></p>
+                <ul>
+                    <li>Hierarchical clustering</li>
+                    <li>Tidak perlu menentukan k awal</li>
+                    <li>Dapat divisualisasikan dengan dendrogram</li>
+                    <li>Menggunakan DTW distance matrix</li>
+                </ul>
+                <p><strong>Keunggulan:</strong> Menangkap struktur hierarki, flexible</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -637,7 +693,7 @@ if selected == "Beranda":
         <div class="feature-card">
             <div class="feature-icon">🎯</div>
             <div class="feature-title">Clustering dengan DTW</div>
-            <div class="feature-desc">Jalankan TimeSeriesKMeans dan HAC dengan metric DTW</div>
+            <div class="feature-desc">Jalankan TimeSeriesKMeans dan HAC dengan metric DTW secara bersamaan</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -646,7 +702,7 @@ if selected == "Beranda":
         <div class="feature-card">
             <div class="feature-icon">📈</div>
             <div class="feature-title">Komparasi & Visualisasi</div>
-            <div class="feature-desc">Bandingkan hasil dan visualisasi kedua algoritma</div>
+            <div class="feature-desc">Bandingkan hasil kedua algoritma dengan visualisasi interaktif</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -681,10 +737,10 @@ if selected == "Beranda":
     with col_info2:
         st.markdown("""
         <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
-            <h4>🎯 Algoritma Clustering</h4>
+            <h4>🎯 Perbandingan Algoritma</h4>
             <ul>
                 <li><strong>TimeSeriesKMeans</strong> - K-Means berbasis DTW (Dynamic Time Warping)</li>
-                <li><strong>Hierarchical Agglomerative Clustering</strong> - HAC dengan DTW distance matrix</li>
+                <li><strong>Hierarchical Agglomerative</strong> - HAC dengan DTW distance matrix</li>
             </ul>
             <br>
             <h4>📈 Metrik Evaluasi</h4>
@@ -927,10 +983,10 @@ elif selected == "Clustering":
             col1, col2 = st.columns([2, 1])
             
             with col1:
-                st.markdown("#### Pilih Algoritma Clustering")
+                st.markdown("#### Pilih Mode Analisis")
                 algorithm = st.radio(
-                    "Pilih Algoritma",
-                    ["TimeSeriesKMeans (DTW)", "Hierarchical Agglomerative (DTW)", "Komparasi Kedua Algoritma"],
+                    "Pilih Mode",
+                    ["TimeSeriesKMeans Only", "Hierarchical Agglomerative Only", "Komparasi Kedua Algoritma"],
                     index=0,
                     horizontal=True
                 )
@@ -947,62 +1003,69 @@ elif selected == "Clustering":
             
             if st.button("🚀 Jalankan Analisis", use_container_width=True):
                 with st.spinner("Sedang menganalisis data..."):
-                    if algorithm in ["TimeSeriesKMeans (DTW)", "Komparasi Kedua Algoritma"]:
-                        hasil_ts, X_ts, results_ts_df, results_hac_df, final_k_ts, final_k_hac, tahun_order = run_comparative_clustering(
-                            st.session_state.data, st.session_state.pendidikan_order
-                        )
-                        
-                        st.session_state.hasil_ts = hasil_ts
-                        st.session_state.X_ts = X_ts
-                        st.session_state.results_ts_df = results_ts_df
-                        st.session_state.results_hac_df = results_hac_df
-                        st.session_state.final_k_ts = final_k_ts
-                        st.session_state.final_k_hac = final_k_hac
-                        st.session_state.tahun_order = tahun_order
-                        
-                        # Pisahkan hasil untuk masing-masing algoritma
-                        st.session_state.hasil_hac = hasil_ts[['nama_kabupaten_kota', 'pendidikan', 'cluster_hac']].copy()
-                        st.session_state.hasil_hac.rename(columns={'cluster_hac': 'cluster'}, inplace=True)
-                        
+                    # Jalankan kedua algoritma
+                    hasil_ts, X_ts, results_ts_df, results_hac_df, final_k_ts, final_k_hac, tahun_order = run_comparative_clustering(
+                        st.session_state.data, st.session_state.pendidikan_order
+                    )
+                    
+                    st.session_state.X_ts = X_ts
+                    st.session_state.tahun_order = tahun_order
+                    
+                    # Simpan hasil sesuai mode
+                    if algorithm in ["TimeSeriesKMeans Only", "Komparasi Kedua Algoritma"]:
                         st.session_state.hasil_ts = hasil_ts[['nama_kabupaten_kota', 'pendidikan', 'cluster_ts']].copy()
                         st.session_state.hasil_ts.rename(columns={'cluster_ts': 'cluster'}, inplace=True)
+                        st.session_state.results_ts_df = results_ts_df
+                        st.session_state.final_k_ts = final_k_ts
+                    
+                    if algorithm in ["Hierarchical Agglomerative Only", "Komparasi Kedua Algoritma"]:
+                        st.session_state.hasil_hac = hasil_ts[['nama_kabupaten_kota', 'pendidikan', 'cluster_hac']].copy()
+                        st.session_state.hasil_hac.rename(columns={'cluster_hac': 'cluster'}, inplace=True)
+                        st.session_state.results_hac_df = results_hac_df
+                        st.session_state.final_k_hac = final_k_hac
                 
                 st.success("✅ Analisis clustering selesai!")
             
-            # Tampilkan hasil jika sudah ada
-            if st.session_state.hasil_ts is not None:
-                st.markdown("#### Hasil Clustering TimeSeriesKMeans")
-                st.markdown(f"**Cluster Terbaik (Voting):** {st.session_state.final_k_ts}")
-                st.dataframe(st.session_state.results_ts_df, use_container_width=True)
-                
-                st.markdown("#### Distribusi Cluster")
-                cluster_counts_ts = st.session_state.hasil_ts['cluster'].value_counts().sort_index()
-                st.dataframe(cluster_counts_ts, use_container_width=True)
-                
-                if PLOTLY_AVAILABLE:
-                    fig = px.bar(
-                        x=cluster_counts_ts.index, y=cluster_counts_ts.values,
-                        title='Distribusi Cluster TimeSeriesKMeans',
-                        labels={'x': 'Cluster', 'y': 'Jumlah'}
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+            # Tampilkan hasil jika sudah ada - DIPISAHKAN
+            col_res1, col_res2 = st.columns(2)
             
-            if st.session_state.hasil_hac is not None:
-                st.markdown("#### Hasil Clustering Hierarchical Agglomerative (DTW)")
-                st.markdown(f"**Cluster Terbaik (Voting):** {st.session_state.final_k_hac}")
-                st.dataframe(st.session_state.results_hac_df, use_container_width=True)
-                
-                st.markdown("#### Distribusi Cluster")
-                cluster_counts_hac = st.session_state.hasil_hac['cluster'].value_counts().sort_index()
-                st.dataframe(cluster_counts_hac, use_container_width=True)
-                
-                if PLOTLY_AVAILABLE:
-                    fig = px.bar(
-                        x=cluster_counts_hac.index, y=cluster_counts_hac.values,
-                        title='Distribusi Cluster Hierarchical Agglomerative',
-                        labels={'x': 'Cluster', 'y': 'Jumlah'}
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+            with col_res1:
+                if st.session_state.hasil_ts is not None:
+                    st.markdown("#### 🔵 TimeSeriesKMeans")
+                    st.markdown(f"**Cluster Terbaik (Voting):** {st.session_state.final_k_ts}")
+                    st.dataframe(st.session_state.results_ts_df, use_container_width=True)
+                    
+                    st.markdown("**Distribusi Cluster**")
+                    cluster_counts_ts = st.session_state.hasil_ts['cluster'].value_counts().sort_index()
+                    st.dataframe(cluster_counts_ts, use_container_width=True)
+                    
+                    if PLOTLY_AVAILABLE:
+                        fig = px.bar(
+                            x=cluster_counts_ts.index, y=cluster_counts_ts.values,
+                            title='Distribusi Cluster TimeSeriesKMeans',
+                            labels={'x': 'Cluster', 'y': 'Jumlah'},
+                            color_discrete_sequence=['#3498db']
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+            
+            with col_res2:
+                if st.session_state.hasil_hac is not None:
+                    st.markdown("#### 🔴 Hierarchical Agglomerative")
+                    st.markdown(f"**Cluster Terbaik (Voting):** {st.session_state.final_k_hac}")
+                    st.dataframe(st.session_state.results_hac_df, use_container_width=True)
+                    
+                    st.markdown("**Distribusi Cluster**")
+                    cluster_counts_hac = st.session_state.hasil_hac['cluster'].value_counts().sort_index()
+                    st.dataframe(cluster_counts_hac, use_container_width=True)
+                    
+                    if PLOTLY_AVAILABLE:
+                        fig = px.bar(
+                            x=cluster_counts_hac.index, y=cluster_counts_hac.values,
+                            title='Distribusi Cluster Hierarchical Agglomerative',
+                            labels={'x': 'Cluster', 'y': 'Jumlah'},
+                            color_discrete_sequence=['#e74c3c']
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("⚠️ Silakan upload dataset terlebih dahulu di menu 'Upload Dataset'")
 
@@ -1026,8 +1089,8 @@ elif selected == "Komparasi Algoritma":
             ].values[0]
             
             st.markdown(f"""
-                <div class="result-card">
-                    <h4>TimeSeriesKMeans (DTW)</h4>
+                <div class="result-card" style="border-left-color: #3498db;">
+                    <h4 style="color: #3498db;">🔵 TimeSeriesKMeans</h4>
                     <p><strong>Cluster Terbaik:</strong> {st.session_state.final_k_ts}</p>
                     <p><strong>Silhouette Score:</strong> <span class="metric-good">{ts_silhouette:.4f}</span></p>
                     <p><strong>Davies-Bouldin Index:</strong> <span class="metric-bad">{ts_dbi:.4f}</span></p>
@@ -1052,8 +1115,8 @@ elif selected == "Komparasi Algoritma":
             ].values[0]
             
             st.markdown(f"""
-                <div class="result-card">
-                    <h4>Hierarchical Agglomerative (DTW)</h4>
+                <div class="result-card" style="border-left-color: #e74c3c;">
+                    <h4 style="color: #e74c3c;">🔴 Hierarchical Agglomerative</h4>
                     <p><strong>Cluster Terbaik:</strong> {st.session_state.final_k_hac}</p>
                     <p><strong>Silhouette Score:</strong> <span class="metric-good">{hac_silhouette:.4f}</span></p>
                     <p><strong>Davies-Bouldin Index:</strong> <span class="metric-good">{hac_dbi:.4f}</span></p>
@@ -1152,13 +1215,13 @@ elif selected == "Visualisasi":
                             title='Elbow Curve - TimeSeriesKMeans'
                         )
                         fig.add_vline(
-                            x=st.session_state.final_k_ts, line_dash="dash", line_color="red",
+                            x=st.session_state.final_k_ts, line_dash="dash", line_color="blue",
                             annotation_text=f"Optimal k={st.session_state.final_k_ts}"
                         )
                         fig.update_layout(height=350)
                         st.plotly_chart(fig, use_container_width=True)
                     
-                    st.markdown("##### Metrik TimeSeriesKMeans")
+                    st.markdown("##### 🔵 TimeSeriesKMeans")
                     if st.session_state.results_ts_df is not None:
                         col1a, col1b, col1c = st.columns(3)
                         with col1a:
@@ -1176,8 +1239,7 @@ elif selected == "Visualisasi":
                 
                 with col2:
                     if st.session_state.results_hac_df is not None:
-                        # Metrik HAC
-                        st.markdown("##### Metrik Hierarchical Agglomerative")
+                        st.markdown("##### 🔴 Hierarchical Agglomerative")
                         col2a, col2b, col2c = st.columns(3)
                         with col2a:
                             st.metric(
@@ -1211,7 +1273,7 @@ elif selected == "Visualisasi":
                         fig = px.scatter(
                             df_pca, x='PC1', y='PC2', color='Cluster',
                             hover_data=['Kab/Kota', 'Pendidikan'],
-                            title=f'TimeSeriesKMeans (k={st.session_state.final_k_ts})',
+                            title=f'🔵 TimeSeriesKMeans (k={st.session_state.final_k_ts})',
                             color_continuous_scale='Viridis',
                             size_max=15
                         )
@@ -1233,7 +1295,7 @@ elif selected == "Visualisasi":
                         fig = px.scatter(
                             df_pca, x='PC1', y='PC2', color='Cluster',
                             hover_data=['Kab/Kota', 'Pendidikan'],
-                            title=f'Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
+                            title=f'🔴 Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
                             color_continuous_scale='Plasma',
                             size_max=15
                         )
@@ -1248,15 +1310,13 @@ elif selected == "Visualisasi":
                 
                 with col1:
                     if st.session_state.hasil_ts is not None and st.session_state.tahun_order is not None:
-                        st.markdown("##### TimeSeriesKMeans")
+                        st.markdown("##### 🔵 TimeSeriesKMeans")
                         fig = go.Figure()
                         for c in range(st.session_state.final_k_ts):
                             idx = np.where(st.session_state.hasil_ts['cluster'] == c)[0]
                             if len(idx) > 0:
                                 mean_pattern = st.session_state.X_ts[idx].mean(axis=0).ravel()
-                                # Reshape untuk mendapatkan per pendidikan
                                 mean_reshaped = mean_pattern.reshape(len(st.session_state.tahun_order), -1)
-                                # Ambil rata-rata per tahun
                                 mean_per_year = mean_reshaped.mean(axis=1)
                                 fig.add_trace(go.Scatter(
                                     x=st.session_state.tahun_order,
@@ -1277,7 +1337,7 @@ elif selected == "Visualisasi":
                 
                 with col2:
                     if st.session_state.hasil_hac is not None and st.session_state.tahun_order is not None:
-                        st.markdown("##### Hierarchical Agglomerative")
+                        st.markdown("##### 🔴 Hierarchical Agglomerative")
                         fig = go.Figure()
                         for c in range(st.session_state.final_k_hac):
                             idx = np.where(st.session_state.hasil_hac['cluster'] == c)[0]
@@ -1311,7 +1371,7 @@ elif selected == "Visualisasi":
                 
                 with col1:
                     if st.session_state.hasil_ts is not None:
-                        st.markdown("##### TimeSeriesKMeans")
+                        st.markdown("##### 🔵 TimeSeriesKMeans")
                         pivot_cluster_ts = st.session_state.hasil_ts.pivot_table(
                             index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
                         )
@@ -1327,7 +1387,7 @@ elif selected == "Visualisasi":
                 
                 with col2:
                     if st.session_state.hasil_hac is not None:
-                        st.markdown("##### Hierarchical Agglomerative")
+                        st.markdown("##### 🔴 Hierarchical Agglomerative")
                         pivot_cluster_hac = st.session_state.hasil_hac.pivot_table(
                             index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
                         )
@@ -1348,21 +1408,22 @@ elif selected == "Visualisasi":
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        # Distribusi Cluster
+                        # Distribusi Cluster TimeSeriesKMeans
                         ts_counts = st.session_state.hasil_ts['cluster'].value_counts().sort_index()
                         fig = px.pie(
                             values=ts_counts.values, names=ts_counts.index,
-                            title=f'TimeSeriesKMeans (k={st.session_state.final_k_ts})',
+                            title=f'🔵 TimeSeriesKMeans (k={st.session_state.final_k_ts})',
                             color_discrete_sequence=px.colors.sequential.Viridis
                         )
                         fig.update_layout(height=350)
                         st.plotly_chart(fig, use_container_width=True)
                     
                     with col2:
+                        # Distribusi Cluster HAC
                         hac_counts = st.session_state.hasil_hac['cluster'].value_counts().sort_index()
                         fig = px.pie(
                             values=hac_counts.values, names=hac_counts.index,
-                            title=f'Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
+                            title=f'🔴 Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
                             color_discrete_sequence=px.colors.sequential.Plasma
                         )
                         fig.update_layout(height=350)
@@ -1379,7 +1440,7 @@ elif selected == "Visualisasi":
                         )
                         fig = px.imshow(
                             pivot_ts,
-                            title='TimeSeriesKMeans',
+                            title='🔵 TimeSeriesKMeans',
                             color_continuous_scale='Viridis',
                             aspect='auto'
                         )
@@ -1392,7 +1453,7 @@ elif selected == "Visualisasi":
                         )
                         fig = px.imshow(
                             pivot_hac,
-                            title='Hierarchical Agglomerative',
+                            title='🔴 Hierarchical Agglomerative',
                             color_continuous_scale='Plasma',
                             aspect='auto'
                         )
@@ -1401,8 +1462,8 @@ elif selected == "Visualisasi":
                     
                     st.info("""
                     💡 **Perbandingan Visual:**
-                    - **TimeSeriesKMeans** mengelompokkan berdasarkan prototype centroid dengan DTW
-                    - **Hierarchical Agglomerative** mengelompokkan berdasarkan distance matrix DTW
+                    - **🔵 TimeSeriesKMeans** mengelompokkan berdasarkan prototype centroid dengan DTW
+                    - **🔴 Hierarchical Agglomerative** mengelompokkan berdasarkan distance matrix DTW
                     - Perhatikan perbedaan jumlah cluster dan distribusi antar cluster
                     """)
         else:
@@ -1425,20 +1486,21 @@ elif selected == "Unduh Hasil":
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            csv_ts = st.session_state.hasil_ts.to_csv(index=False)
-            st.download_button(
-                label="📊 Unduh Hasil TimeSeriesKMeans (CSV)",
-                data=csv_ts,
-                file_name="hasil_timeserieskmeans.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+            if st.session_state.hasil_ts is not None:
+                csv_ts = st.session_state.hasil_ts.to_csv(index=False)
+                st.download_button(
+                    label="🔵 Unduh Hasil TimeSeriesKMeans (CSV)",
+                    data=csv_ts,
+                    file_name="hasil_timeserieskmeans.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
         
         with col2:
             if st.session_state.hasil_hac is not None:
                 csv_hac = st.session_state.hasil_hac.to_csv(index=False)
                 st.download_button(
-                    label="📊 Unduh Hasil HAC (CSV)",
+                    label="🔴 Unduh Hasil HAC (CSV)",
                     data=csv_hac,
                     file_name="hasil_hac.csv",
                     mime="text/csv",
@@ -1482,11 +1544,11 @@ elif selected == "Unduh Hasil":
                     use_container_width=True
                 )
         
-        st.markdown("#### Preview Hasil TimeSeriesKMeans")
+        st.markdown("#### 🔵 Preview Hasil TimeSeriesKMeans")
         st.dataframe(st.session_state.hasil_ts.head(10), use_container_width=True)
         
         if st.session_state.hasil_hac is not None:
-            st.markdown("#### Preview Hasil HAC")
+            st.markdown("#### 🔴 Preview Hasil HAC")
             st.dataframe(st.session_state.hasil_hac.head(10), use_container_width=True)
     else:
         st.warning("⚠️ Belum ada hasil analisis. Silakan jalankan analisis di menu 'Clustering'")
@@ -1506,7 +1568,7 @@ elif selected == "Tentang Aplikasi":
                 <hr>
                 <h4>🎯 Tujuan</h4>
                 <p>Membantu analisis dan perbandingan hasil clustering antara algoritma 
-                TimeSeriesKMeans dan Hierarchical Agglomerative Clustering (HAC) 
+                <strong>TimeSeriesKMeans</strong> dan <strong>Hierarchical Agglomerative Clustering (HAC)</strong> 
                 untuk data pengangguran terbuka di Jawa Barat.</p>
                 <hr>
                 <h4>📚 Teknologi yang Digunakan</h4>
@@ -1528,8 +1590,8 @@ elif selected == "Tentang Aplikasi":
                 <hr>
                 <h4>📊 Perbedaan Algoritma</h4>
                 <ul>
-                    <li><strong>TimeSeriesKMeans:</strong> Prototype-based, efisien untuk data besar</li>
-                    <li><strong>HAC:</strong> Hierarchical, tidak perlu menentukan k awal</li>
+                    <li><strong>🔵 TimeSeriesKMeans:</strong> Prototype-based, efisien untuk data besar</li>
+                    <li><strong>🔴 HAC:</strong> Hierarchical, tidak perlu menentukan k awal</li>
                 </ul>
             </div>
         """, unsafe_allow_html=True)
@@ -1554,6 +1616,6 @@ elif selected == "Tentang Aplikasi":
 st.markdown("---")
 st.markdown("""
     <div class="footer">
-        © 2026 Sistem Komparasi Clustering Pengangguran Terbuka. All rights reserved.
+        © 2026 Sistem Komparasi Clustering Pengangguran Terbuka | TimeSeriesKMeans vs Hierarchical Agglomerative Clustering
     </div>
 """, unsafe_allow_html=True)
