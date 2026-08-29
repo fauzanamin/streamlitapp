@@ -428,7 +428,7 @@ if st.session_state.page == "Beranda":
     st.markdown("""
         <div style="background: linear-gradient(135deg, #e8f4f8 0%, #f0f8ff 100%); 
                     padding: 2rem; border-radius: 10px; margin-bottom: 1.5rem;">
-            <h3 style="color: #1f77b4; margin-bottom: 0.5rem;">👋 Selamat Datang!</h3>
+            <h3 style="color: #1f77b4; margin-bottom: 0.5rem;">👋 K-Medoids Streamlit Web App!</h3>
             <p style="font-size: 1.05rem; color: #2c3e50;">
                 Aplikasi ini digunakan untuk menganalisis pengelompokan 27 kabupaten/kota di Provinsi Jawa Barat
                 berdasarkan karakteristik perkembangan jumlah pengangguran terbuka menurut tingkat pendidikan
