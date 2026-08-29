@@ -1,124 +1,79 @@
-# app.py
+# -*- coding: utf-8 -*-
+"""
+SISTEM ANALISIS PENGELOMPOKAN KABUPATEN/KOTA DI JAWA BARAT
+BERDASARKAN KARAKTERISTIK PERKEMBANGAN JUMLAH PENGANGGURAN TERBUKA
+MENURUT TINGKAT PENDIDIKAN MENGGUNAKAN METODE K-MEDOIDS
+
+Rakha Rizky Mahendra - NPM 21083010013
+Program Studi Sains Data
+Universitas Pembangunan Nasional Veteran Jawa Timur
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.cluster import KMeans, AgglomerativeClustering
-from sklearn.metrics import silhouette_score, davies_bouldin_score
+from sklearn.preprocessing import RobustScaler
+from sklearn_extra.cluster import KMedoids
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.decomposition import PCA
-import io
-import base64
 import warnings
 warnings.filterwarnings('ignore')
 
-# Coba import dengan error handling
-try:
-    import plotly.express as px
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
-
-try:
-    from streamlit_option_menu import option_menu
-    MENU_AVAILABLE = True
-except ImportError:
-    MENU_AVAILABLE = False
-
-# Coba import tslearn untuk TimeSeriesKMeans
-try:
-    from tslearn.clustering import TimeSeriesKMeans
-    from tslearn.preprocessing import TimeSeriesScalerMinMax
-    from tslearn.utils import to_time_series_dataset
-    from tslearn.metrics import cdist_dtw
-    from tslearn.clustering import TimeSeriesKMeans
-    TSKLEARN_AVAILABLE = True
-except ImportError:
-    TSKLEARN_AVAILABLE = False
-
-# Konfigurasi halaman
+# ==========================================================
+# KONFIGURASI HALAMAN
+# ==========================================================
 st.set_page_config(
-    page_title="Sistem Komparasi Clustering Pengangguran Terbuka",
+    page_title="Analisis K-Medoids Pengangguran Jawa Barat",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS untuk styling yang lebih baik
+# ==========================================================
+# CUSTOM CSS
+# ==========================================================
 st.markdown("""
     <style>
     .main-header {
-        font-size: 1.85rem;
-        font-weight: 700;
-        letter-spacing: -0.3px;
-        line-height: 1.35;
-        color: #1a2733;
-        text-align: center;
-        padding: 0.9rem 1.5rem 1.1rem 1.5rem;
-        border-bottom: 1px solid #e3e8ee;
-        margin-bottom: 1.6rem;
-    }
-    .main-header-icon {
+        font-size: 2.2rem;
         color: #1f77b4;
-        margin-right: 0.35rem;
-    }
-    .app-subtitle {
-        font-size: 0.92rem;
-        font-weight: 400;
-        color: #7f8c95;
         text-align: center;
-        margin-top: 0.35rem;
-        letter-spacing: 0;
-    }
-    section[data-testid="stSidebar"] {
-        min-width: 230px !important;
-        max-width: 230px !important;
-    }
-    section[data-testid="stSidebar"] > div {
-        padding-top: 0.5rem;
-    }
-    section[data-testid="stSidebar"] h3 {
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        color: #8a94a3;
-        padding-left: 0.3rem;
-        margin-bottom: 0.4rem;
+        padding: 1rem 0;
+        border-bottom: 3px solid #1f77b4;
+        margin-bottom: 1.5rem;
     }
     .sub-header {
         font-size: 1.5rem;
         color: #2c3e50;
-        padding: 1rem 0;
+        padding: 0.8rem 0;
         border-bottom: 2px solid #ecf0f1;
         margin-bottom: 1rem;
     }
     .stat-card {
         background-color: #f8f9fa;
-        padding: 1.5rem;
+        padding: 1.2rem;
         border-radius: 10px;
         border-left: 4px solid #1f77b4;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 0.8rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
     }
     .stat-number {
-        font-size: 2rem;
+        font-size: 1.8rem;
         font-weight: bold;
         color: #1f77b4;
     }
     .stat-label {
-        font-size: 1rem;
+        font-size: 0.85rem;
         color: #7f8c8d;
-        margin-top: 0.5rem;
     }
     .result-card {
         background-color: white;
         padding: 1.5rem;
         border-radius: 10px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
     .metric-good {
         color: #27ae60;
@@ -128,13 +83,17 @@ st.markdown("""
         color: #e74c3c;
         font-weight: bold;
     }
+    .metric-medium {
+        color: #f39c12;
+        font-weight: bold;
+    }
     .upload-area {
         border: 2px dashed #1f77b4;
-        padding: 3rem;
+        padding: 2rem;
         text-align: center;
         border-radius: 10px;
         background-color: #fafafa;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
     .footer {
         text-align: center;
@@ -144,633 +103,305 @@ st.markdown("""
         margin-top: 2rem;
     }
     .section-title {
-        font-size: 1.15rem;
+        font-size: 1.1rem;
         font-weight: 600;
         color: #2c3e50;
         padding-bottom: 0.4rem;
         border-bottom: 2px solid #ecf0f1;
         margin-bottom: 0.8rem;
     }
-    .hero-section {
-        background: linear-gradient(135deg, #1f77b4 0%, #2c3e50 100%);
-        padding: 2.5rem;
-        border-radius: 15px;
-        color: white;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-    .hero-section h1 {
-        font-size: 2.2rem;
-        margin-bottom: 0.5rem;
-    }
-    .hero-section p {
-        font-size: 1.1rem;
-        opacity: 0.9;
-        max-width: 700px;
-        margin: 0 auto;
-    }
-    .feature-card {
-        background-color: white;
-        padding: 1.8rem;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        text-align: center;
-        height: 100%;
-        border-top: 4px solid #1f77b4;
-        transition: transform 0.2s;
-    }
-    .feature-card:hover {
-        transform: translateY(-4px);
-    }
-    .feature-icon {
-        font-size: 2.8rem;
-        margin-bottom: 0.8rem;
-    }
-    .feature-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 0.5rem;
-    }
-    .feature-desc {
-        font-size: 0.9rem;
-        color: #7f8c8d;
-        line-height: 1.5;
-    }
-    .step-card {
-        background-color: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        border-left: 4px solid #1f77b4;
-    }
-    .step-number {
-        display: inline-block;
-        background-color: #1f77b4;
-        color: white;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        line-height: 32px;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    .status-badge {
+    .cluster-badge {
         display: inline-block;
         padding: 0.2rem 0.8rem;
         border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .status-ready {
-        background-color: #d4edda;
-        color: #155724;
-    }
-    .status-processing {
-        background-color: #fff3cd;
-        color: #856404;
-    }
-    .status-done {
-        background-color: #cce5ff;
-        color: #004085;
-    }
-    .algo-card {
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
-        border-left: 4px solid #1f77b4;
-    }
-    .algo-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 0.5rem;
-    }
-    .algo-desc {
-        font-size: 0.9rem;
-        color: #7f8c8d;
-        line-height: 1.5;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin: 0.1rem;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Header
-st.markdown(
-    '<div class="main-header">'
-    '<span class="main-header-icon">📊</span>Sistem Komparasi Clustering Pengangguran Terbuka'
-    '<div class="app-subtitle">Perbandingan TimeSeriesKMeans vs Hierarchical Agglomerative Clustering dengan DTW</div>'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-# Inisialisasi session state untuk menyimpan data
+# ==========================================================
+# SESSION STATE INITIALIZATION
+# ==========================================================
 if 'data' not in st.session_state:
     st.session_state.data = None
-if 'pivot_km' not in st.session_state:
-    st.session_state.pivot_km = None
-if 'X' not in st.session_state:
-    st.session_state.X = None
-if 'X_ts' not in st.session_state:
-    st.session_state.X_ts = None
-if 'tahun_order' not in st.session_state:
-    st.session_state.tahun_order = None
-if 'hasil_ts' not in st.session_state:
-    st.session_state.hasil_ts = None
-if 'hasil_hac' not in st.session_state:
-    st.session_state.hasil_hac = None
-if 'final_k_ts' not in st.session_state:
-    st.session_state.final_k_ts = None
-if 'final_k_hac' not in st.session_state:
-    st.session_state.final_k_hac = None
-if 'results_ts_df' not in st.session_state:
-    st.session_state.results_ts_df = None
-if 'results_hac_df' not in st.session_state:
-    st.session_state.results_hac_df = None
-if 'analysis_done' not in st.session_state:
-    st.session_state.analysis_done = False
+if 'pivot_data' not in st.session_state:
+    st.session_state.pivot_data = None
+if 'df_karakteristik' not in st.session_state:
+    st.session_state.df_karakteristik = None
+if 'df_standardized' not in st.session_state:
+    st.session_state.df_standardized = None
+if 'clustering_results' not in st.session_state:
+    st.session_state.clustering_results = None
+if 'best_k' not in st.session_state:
+    st.session_state.best_k = None
+if 'best_labels' not in st.session_state:
+    st.session_state.best_labels = None
+if 'best_medoids' not in st.session_state:
+    st.session_state.best_medoids = None
+if 'evaluation_df' not in st.session_state:
+    st.session_state.evaluation_df = None
+if 'cluster_means' not in st.session_state:
+    st.session_state.cluster_means = None
 if 'pendidikan_order' not in st.session_state:
-    st.session_state.pendidikan_order = None
+    st.session_state.pendidikan_order = ['SD KE BAWAH', 'SMP', 'SMA/SLTA', 'PERGURUAN TINGGI']
+if 'karakteristik_columns' not in st.session_state:
+    st.session_state.karakteristik_columns = None
 
-# Sidebar untuk menu
+# ==========================================================
+# HEADER
+# ==========================================================
+st.markdown("""
+    <div class="main-header">
+        📊 Analisis Pengelompokan Kabupaten/Kota di Jawa Barat<br>
+        <small style="font-size: 1rem; color: #555;">
+            Berdasarkan Karakteristik Perkembangan Jumlah Pengangguran Terbuka<br>
+            Menggunakan Metode K-Medoids
+        </small>
+    </div>
+""", unsafe_allow_html=True)
+
+# ==========================================================
+# SIDEBAR MENU
+# ==========================================================
 with st.sidebar:
-    st.markdown("### MENU")
+    st.markdown("### 📋 MENU NAVIGASI")
     
-    if MENU_AVAILABLE:
-        selected = option_menu(
-            menu_title=None,
-            options=["Beranda", "Upload Dataset", "Exploratory Data Analysis", "Clustering", 
-                    "Komparasi Algoritma", "Visualisasi", "Unduh Hasil", "Tentang Aplikasi"],
-            icons=["house", "cloud-upload", "bar-chart", "diagram-3", "shuffle", 
-                   "graph-up", "download", "info-circle"],
-            menu_icon="cast",
-            default_index=0,
-            styles={
-                "container": {"padding": "0!important", "background-color": "#fafafa"},
-                "icon": {"color": "#1f77b4", "font-size": "15px"},
-                "nav-link": {"font-size": "13.5px", "text-align": "left", "margin": "1px 0",
-                            "padding": "8px 10px", "border-radius": "6px",
-                            "--hover-color": "#eee"},
-                "nav-link-selected": {"background-color": "#1f77b4", "font-weight": "500"},
-            }
-        )
-    else:
-        menu_options = ["Beranda", "Upload Dataset", "Exploratory Data Analysis", "Clustering", 
-                       "Komparasi Algoritma", "Visualisasi", "Unduh Hasil", "Tentang Aplikasi"]
-        selected = st.selectbox("Pilih Menu", menu_options)
+    menu_options = [
+        "🏠 Beranda",
+        "📤 Upload Dataset",
+        "📊 Exploratory Data Analysis",
+        "⚙️ Preprocessing & Karakteristik",
+        "🎯 Clustering K-Medoids",
+        "📈 Evaluasi & Hasil",
+        "📥 Unduh Hasil",
+        "ℹ️ Tentang"
+    ]
+    
+    selected = st.radio(
+        "Pilih Menu",
+        menu_options,
+        index=0,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
+    st.markdown("""
+        <div style="font-size: 0.8rem; color: #7f8c8d; text-align: center;">
+            <strong>Rakha Rizky Mahendra</strong><br>
+            NPM 21083010013<br>
+            Sains Data - UPN Veteran Jatim
+        </div>
+    """, unsafe_allow_html=True)
 
-# ==================== FUNGSI UTAMA ====================
+# ==========================================================
+# FUNGSI-FUNGSI UTAMA
+# ==========================================================
 
-def preprocess_data(df):
-    """Preprocessing data dengan penggabungan pendidikan yang konsisten"""
-    data = df.copy()
+def calculate_slope(y):
+    """Menghitung slope regresi linear sederhana"""
+    t = np.arange(len(y))
+    if len(y) < 2:
+        return 0
+    slope = np.polyfit(t, y, 1)[0]
+    return slope
+
+def calculate_cv(y):
+    """Menghitung coefficient of variation"""
+    mean_y = np.mean(y)
+    if mean_y == 0:
+        return 0
+    std_y = np.std(y, ddof=1)
+    return std_y / mean_y
+
+def process_data(data):
+    """Proses data lengkap: preprocessing, karakteristik, standardisasi"""
     
     # Filter tahun 2017-2025
     data = data[(data['tahun'] >= 2017) & (data['tahun'] <= 2025)]
     
-    # Gabung kategori pendidikan dengan konsisten
-    pendidikan_mapping = {
-        'TIDAK/BELUM PERNAH SEKOLAH/TIDAK/BELUM TAMAT SD': 'SD KE BAWAH',
-        'SD': 'SD KE BAWAH',
-        'SMP': 'SMP',
-        'SMP SEDERAJAT': 'SMP',
-        'SMA (UMUM)': 'SMA',
-        'SMA (KEJURUAN)': 'SMA',
-        'SMA SEDERAJAT': 'SMA',
-        'SMK': 'SMA',
-        'DIPLOMA I/II/III/AKADEMI/UNIVERSITAS': 'DIPLOMA/UNIVERSITAS',
-        'DIPLOMA': 'DIPLOMA/UNIVERSITAS',
-        'UNIVERSITAS': 'DIPLOMA/UNIVERSITAS',
-        'AKADEMI': 'DIPLOMA/UNIVERSITAS'
-    }
+    # Harmonisasi pendidikan
+    data['pendidikan'] = data['pendidikan'].replace([
+        'TIDAK/BELUM PERNAH SEKOLAH/TIDAK/BELUM TAMAT SD', 'SD'
+    ], 'SD KE BAWAH')
     
-    data['pendidikan'] = data['pendidikan'].replace(pendidikan_mapping)
+    data['pendidikan'] = data['pendidikan'].replace([
+        'SMA (UMUM)', 'SMA (KEJURUAN)'
+    ], 'SMA/SLTA')
     
-    # Pastikan hanya 4 kategori yang tersisa
-    pendidikan_order = ['SD KE BAWAH', 'SMP', 'SMA', 'DIPLOMA/UNIVERSITAS']
-    data = data[data['pendidikan'].isin(pendidikan_order)]
+    data['pendidikan'] = data['pendidikan'].replace([
+        'DIPLOMA I/II/III/AKADEMI/UNIVERSITAS'
+    ], 'PERGURUAN TINGGI')
+    
+    pendidikan_order = ['SD KE BAWAH', 'SMP', 'SMA/SLTA', 'PERGURUAN TINGGI']
     data['pendidikan'] = pd.Categorical(data['pendidikan'], categories=pendidikan_order, ordered=True)
     
-    return data, pendidikan_order
-
-def create_pivot_for_clustering(data, pendidikan_order):
-    """Membuat pivot untuk clustering (27 kab/kota x 4 pendidikan x 9 tahun)"""
-    pivot = data.pivot_table(
+    # Pivot data
+    pivot_data = data.pivot_table(
         index=['nama_kabupaten_kota', 'tahun'],
         columns='pendidikan',
         values='jumlah_pengangguran',
         aggfunc='mean',
         observed=True
     )
-    pivot = pivot[pendidikan_order]
+    pivot_data = pivot_data[pendidikan_order]
     
-    # Interpolasi jika ada missing value
-    if pivot.isnull().values.any():
-        pivot = pivot.interpolate(axis=0, limit_direction='both')
+    # Interpolasi missing values
+    if pivot_data.isnull().values.any():
+        pivot_data = pivot_data.interpolate(axis=0, limit_direction='both')
     
-    return pivot
-
-def create_timeseries_data(data, pendidikan_order):
-    """Membuat data time series untuk clustering (27 kab x 4 pendidikan x 9 tahun)"""
-    ts_data = data.copy()
-    tahun_order = sorted(ts_data['tahun'].unique())
+    # Bentuk karakteristik
+    kabupaten_list = pivot_data.index.get_level_values('nama_kabupaten_kota').unique()
+    karakteristik_all = {}
     
-    # Pivot untuk time series
-    pivot_ts = ts_data.pivot_table(
-        index=['nama_kabupaten_kota', 'pendidikan'],
-        columns='tahun',
-        values='jumlah_pengangguran',
-        aggfunc='mean'
+    for kab in kabupaten_list:
+        kab_data = pivot_data.xs(kab, level='nama_kabupaten_kota')
+        karak = []
+        for edu in pendidikan_order:
+            series = kab_data[edu].values
+            karak.extend([np.mean(series), calculate_slope(series), calculate_cv(series)])
+        karakteristik_all[kab] = karak
+    
+    karakteristik_columns = []
+    for edu in pendidikan_order:
+        karakteristik_columns.extend([f'Mean_{edu}', f'Slope_{edu}', f'CV_{edu}'])
+    
+    df_karakteristik = pd.DataFrame.from_dict(karakteristik_all, orient='index', columns=karakteristik_columns)
+    df_karakteristik.index.name = 'Kabupaten_Kota'
+    df_karakteristik = df_karakteristik.reset_index()
+    
+    # Standardisasi dengan RobustScaler
+    fitur = df_karakteristik[karakteristik_columns]
+    scaler = RobustScaler()
+    fitur_standardized = scaler.fit_transform(fitur)
+    df_standardized = pd.DataFrame(
+        fitur_standardized,
+        columns=karakteristik_columns,
+        index=df_karakteristik['Kabupaten_Kota']
     )
-    pivot_ts = pivot_ts[tahun_order]
     
-    if pivot_ts.isnull().values.any():
-        pivot_ts = pivot_ts.interpolate(axis=1, limit_direction='both')
-    
-    # Bentuk array time series 3D (n_samples x n_timesteps x n_features)
-    # n_samples = 27 kabupaten/kota * 4 pendidikan = 108
-    # n_timesteps = 9 tahun (2017-2025)
-    # n_features = 1 (jumlah pengangguran)
-    
-    X_ts_raw = to_time_series_dataset(pivot_ts.values)
-    
-    # Normalisasi per-deret
-    scaler_ts = TimeSeriesScalerMinMax()
-    X_ts = scaler_ts.fit_transform(X_ts_raw)
-    
-    labels_id = pivot_ts.reset_index()[['nama_kabupaten_kota', 'pendidikan']]
-    
-    return X_ts, labels_id, tahun_order, pivot_ts
+    return {
+        'data': data,
+        'pivot_data': pivot_data,
+        'df_karakteristik': df_karakteristik,
+        'df_standardized': df_standardized,
+        'pendidikan_order': pendidikan_order,
+        'karakteristik_columns': karakteristik_columns,
+        'kabupaten_list': kabupaten_list
+    }
 
-def evaluate_timeseries_clustering(X_ts, K_range=range(2, 8)):
-    """Evaluasi TimeSeriesKMeans clustering dengan DTW"""
-    inertia_ts = []
-    silhouette_ts = []
-    dbi_ts = []
+def run_clustering(df_standardized, k_range):
+    """Menjalankan K-Medoids clustering untuk berbagai nilai k"""
+    results = {}
     
-    for k in K_range:
-        model = TimeSeriesKMeans(
+    for k in k_range:
+        kmedoids = KMedoids(
             n_clusters=k,
-            metric="dtw",
+            metric='euclidean',
+            method='pam',
             random_state=42,
-            n_init=5,
-            max_iter=50,
-            n_jobs=-1
+            init='heuristic',
+            max_iter=300
         )
-        labels_k = model.fit_predict(X_ts)
-        inertia_ts.append(model.inertia_)
         
-        # Silhouette dengan DTW distance matrix
-        dist_matrix = cdist_dtw(X_ts)
-        sil = silhouette_score(dist_matrix, labels_k, metric="precomputed")
-        silhouette_ts.append(sil)
+        labels = kmedoids.fit_predict(df_standardized.values)
+        medoid_indices = kmedoids.medoid_indices_
+        medoid_labels = df_standardized.index[medoid_indices].tolist()
         
-        # Davies-Bouldin dengan flattened data
-        X_flat = X_ts.reshape(X_ts.shape[0], -1)
-        dbi = davies_bouldin_score(X_flat, labels_k)
-        dbi_ts.append(dbi)
+        sil_score = silhouette_score(df_standardized.values, labels, metric='euclidean')
+        dbi_score = davies_bouldin_score(df_standardized.values, labels)
+        ch_score = calinski_harabasz_score(df_standardized.values, labels)
+        
+        results[k] = {
+            'labels': labels,
+            'medoid_indices': medoid_indices,
+            'medoid_labels': medoid_labels,
+            'silhouette': sil_score,
+            'dbi': dbi_score,
+            'ch': ch_score,
+            'inertia': kmedoids.inertia_
+        }
     
-    results_ts_df = pd.DataFrame({
-        'Jumlah Cluster': list(K_range),
-        'Inertia': inertia_ts,
-        'Silhouette Score (DTW)': silhouette_ts,
-        'Davies-Bouldin Index': dbi_ts
-    })
-    
-    # Penentuan cluster terbaik
-    best_sil_k_ts = results_ts_df.loc[results_ts_df['Silhouette Score (DTW)'].idxmax(), 'Jumlah Cluster']
-    best_dbi_k_ts = results_ts_df.loc[results_ts_df['Davies-Bouldin Index'].idxmin(), 'Jumlah Cluster']
-    
-    inertia_diff_ts = np.diff(inertia_ts)
-    inertia_ratio_ts = inertia_diff_ts[1:] / inertia_diff_ts[:-1]
-    best_elbow_k_ts = list(K_range)[np.argmin(inertia_ratio_ts) + 1]
-    
-    vote_counts_ts = pd.Series([best_elbow_k_ts, best_sil_k_ts, best_dbi_k_ts]).value_counts()
-    final_k_ts = vote_counts_ts.index[0]
-    
-    # Clustering final
-    model_final_ts = TimeSeriesKMeans(
-        n_clusters=final_k_ts,
-        metric="dtw",
-        random_state=42,
-        n_init=5,
-        max_iter=50,
-        n_jobs=-1
-    )
-    final_labels_ts = model_final_ts.fit_predict(X_ts)
-    
-    return results_ts_df, final_k_ts, final_labels_ts
+    return results
 
-def evaluate_hac_clustering(X_ts, K_range=range(2, 8)):
-    """Evaluasi Hierarchical Agglomerative Clustering dengan DTW"""
-    # Hitung DTW distance matrix
-    dist_matrix = cdist_dtw(X_ts)
-    
-    silhouette_hac = []
-    dbi_hac = []
-    
-    for k in K_range:
-        hac = AgglomerativeClustering(
-            n_clusters=k,
-            metric='precomputed',
-            linkage='average'
-        )
-        labels_k = hac.fit_predict(dist_matrix)
-        
-        sil = silhouette_score(dist_matrix, labels_k, metric="precomputed")
-        silhouette_hac.append(sil)
-        
-        X_flat = X_ts.reshape(X_ts.shape[0], -1)
-        dbi = davies_bouldin_score(X_flat, labels_k)
-        dbi_hac.append(dbi)
-    
-    results_hac_df = pd.DataFrame({
-        'Jumlah Cluster': list(K_range),
-        'Silhouette Score (DTW)': silhouette_hac,
-        'Davies-Bouldin Index': dbi_hac
-    })
-    
-    # Penentuan cluster terbaik
-    best_sil_k_hac = results_hac_df.loc[results_hac_df['Silhouette Score (DTW)'].idxmax(), 'Jumlah Cluster']
-    best_dbi_k_hac = results_hac_df.loc[results_hac_df['Davies-Bouldin Index'].idxmin(), 'Jumlah Cluster']
-    
-    vote_counts_hac = pd.Series([best_sil_k_hac, best_dbi_k_hac]).value_counts()
-    final_k_hac = vote_counts_hac.index[0]
-    
-    # Clustering final
-    hac_final = AgglomerativeClustering(
-        n_clusters=final_k_hac,
-        metric='precomputed',
-        linkage='average'
-    )
-    final_labels_hac = hac_final.fit_predict(dist_matrix)
-    
-    return results_hac_df, final_k_hac, final_labels_hac
-
-def run_comparative_clustering(data, pendidikan_order):
-    """Menjalankan kedua algoritma dan membandingkan hasilnya"""
-    if not TSKLEARN_AVAILABLE:
-        return None, None, None, None, None, None, None
-    
-    # Siapkan data time series
-    X_ts, labels_id, tahun_order, pivot_ts = create_timeseries_data(data, pendidikan_order)
-    
-    K_range = range(2, 8)  # Range cluster yang dievaluasi
-    
-    # TimeSeriesKMeans
-    results_ts_df, final_k_ts, final_labels_ts = evaluate_timeseries_clustering(X_ts, K_range)
-    
-    # Hierarchical Agglomerative Clustering
-    results_hac_df, final_k_hac, final_labels_hac = evaluate_hac_clustering(X_ts, K_range)
-    
-    # Tambahkan hasil clustering ke labels_id
-    hasil_ts = labels_id.copy()
-    hasil_ts['cluster_ts'] = final_labels_ts
-    hasil_ts['cluster_hac'] = final_labels_hac
-    
-    return hasil_ts, X_ts, results_ts_df, results_hac_df, final_k_ts, final_k_hac, tahun_order
-
-# ==================== BERANDA (LANDING PAGE) ====================
-if selected == "Beranda":
-    # Hero Section
+# ==========================================================
+# MENU: BERANDA
+# ==========================================================
+if selected == "🏠 Beranda":
     st.markdown("""
-    <div class="hero-section">
-        <h1>📊 Selamat Datang di Sistem Komparasi Clustering</h1>
-        <p>Sistem ini membandingkan dua algoritma clustering berbasis DTW untuk data pengangguran terbuka di Jawa Barat:</p>
-        <p style="margin-top: 0.5rem;">
-            <span style="background: #3498db; padding: 0.3rem 1rem; border-radius: 20px; margin: 0 0.3rem;">TimeSeriesKMeans</span>
-            <span style="background: #e74c3c; padding: 0.3rem 1rem; border-radius: 20px; margin: 0 0.3rem;">Hierarchical Agglomerative</span>
-        </p>
-    </div>
+        <div style="background: linear-gradient(135deg, #e8f4f8 0%, #f0f8ff 100%); 
+                    padding: 2rem; border-radius: 10px; margin-bottom: 1.5rem;">
+            <h3 style="color: #1f77b4; margin-bottom: 0.5rem;">👋 Selamat Datang!</h3>
+            <p style="font-size: 1.05rem; color: #2c3e50;">
+                Aplikasi ini digunakan untuk menganalisis pengelompokan 27 kabupaten/kota di Provinsi Jawa Barat
+                berdasarkan karakteristik perkembangan jumlah pengangguran terbuka menurut tingkat pendidikan
+                menggunakan metode <strong>K-Medoids</strong>.
+            </p>
+        </div>
     """, unsafe_allow_html=True)
-    
-    # Status Ringkasan - DIPISAHKAN DENGAN JELAS
-    col_status1, col_status2, col_status3, col_status4 = st.columns(4)
-    
-    with col_status1:
-        if st.session_state.data is not None:
-            st.markdown(f"""
-            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
-                <div style="font-size: 1.8rem;">✅</div>
-                <div class="stat-label" style="font-size: 0.85rem;">Dataset Terupload</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">{len(st.session_state.data)} baris</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
-                <div style="font-size: 1.8rem;">⏳</div>
-                <div class="stat-label" style="font-size: 0.85rem;">Belum Upload</div>
-                <div style="font-size: 0.75rem; color: #95a5a6;">Upload dataset</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col_status2:
-        if st.session_state.X_ts is not None:
-            st.markdown(f"""
-            <div class="stat-card" style="border-left-color: #27ae60; text-align: center;">
-                <div style="font-size: 1.8rem;">✅</div>
-                <div class="stat-label" style="font-size: 0.85rem;">Preprocessing Selesai</div>
-                <div style="font-size: 0.75rem; color: #27ae60;">{st.session_state.X_ts.shape[0]} time series</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
-                <div style="font-size: 1.8rem;">⏳</div>
-                <div class="stat-label" style="font-size: 0.85rem;">Preprocessing</div>
-                <div style="font-size: 0.75rem; color: #95a5a6;">Menunggu upload</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col_status3:
-        if st.session_state.hasil_ts is not None:
-            st.markdown(f"""
-            <div class="stat-card" style="border-left-color: #3498db; text-align: center;">
-                <div style="font-size: 1.8rem;">✅</div>
-                <div class="stat-label" style="font-size: 0.85rem;">TimeSeriesKMeans</div>
-                <div style="font-size: 0.75rem; color: #3498db;">k={st.session_state.final_k_ts} cluster</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
-                <div style="font-size: 1.8rem;">⏳</div>
-                <div class="stat-label" style="font-size: 0.85rem;">TimeSeriesKMeans</div>
-                <div style="font-size: 0.75rem; color: #95a5a6;">Belum dijalankan</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col_status4:
-        if st.session_state.hasil_hac is not None:
-            st.markdown(f"""
-            <div class="stat-card" style="border-left-color: #e74c3c; text-align: center;">
-                <div style="font-size: 1.8rem;">✅</div>
-                <div class="stat-label" style="font-size: 0.85rem;">Hierarchical Agglomerative</div>
-                <div style="font-size: 0.75rem; color: #e74c3c;">k={st.session_state.final_k_hac} cluster</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="stat-card" style="border-left-color: #95a5a6; text-align: center;">
-                <div style="font-size: 1.8rem;">⏳</div>
-                <div class="stat-label" style="font-size: 0.85rem;">Hierarchical Agglomerative</div>
-                <div style="font-size: 0.75rem; color: #95a5a6;">Belum dijalankan</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Penjelasan Algoritma - DIPISAHKAN
-    st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">🤖 Algoritma Clustering yang Dibandingkan</h3>', unsafe_allow_html=True)
-    
-    col_algo1, col_algo2 = st.columns(2)
-    
-    with col_algo1:
-        st.markdown("""
-        <div class="algo-card" style="border-left-color: #3498db;">
-            <div class="algo-title" style="color: #3498db;">📌 TimeSeriesKMeans</div>
-            <div class="algo-desc">
-                <p><strong>Metode:</strong> K-Means berbasis Dynamic Time Warping (DTW)</p>
-                <p><strong>Karakteristik:</strong></p>
-                <ul>
-                    <li>Prototype-based clustering</li>
-                    <li>Efisien untuk data berukuran besar</li>
-                    <li>Menghasilkan centroid untuk interpretasi</li>
-                    <li>Menggunakan DTW sebagai distance metric</li>
-                </ul>
-                <p><strong>Keunggulan:</strong> Cepat, scalable, mudah diinterpretasi</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_algo2:
-        st.markdown("""
-        <div class="algo-card" style="border-left-color: #e74c3c;">
-            <div class="algo-title" style="color: #e74c3c;">📌 Hierarchical Agglomerative Clustering</div>
-            <div class="algo-desc">
-                <p><strong>Metode:</strong> Agglomerative Clustering dengan DTW distance matrix</p>
-                <p><strong>Karakteristik:</strong></p>
-                <ul>
-                    <li>Hierarchical clustering</li>
-                    <li>Tidak perlu menentukan k awal</li>
-                    <li>Dapat divisualisasikan dengan dendrogram</li>
-                    <li>Menggunakan DTW distance matrix</li>
-                </ul>
-                <p><strong>Keunggulan:</strong> Menangkap struktur hierarki, flexible</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Fitur Utama
-    st.markdown('<h3 style="text-align: center; margin-bottom: 1.5rem;">🚀 Fitur Utama Aplikasi</h3>', unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📤</div>
-            <div class="feature-title">Upload Dataset</div>
-            <div class="feature-desc">Upload file Excel (.xlsx) data pengangguran terbuka di Jawa Barat (2017-2025)</div>
-        </div>
+            <div class="stat-card" style="border-left-color: #3498db;">
+                <div class="stat-number">27</div>
+                <div class="stat-label">Kabupaten/Kota</div>
+            </div>
         """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <div class="feature-title">Exploratory Data Analysis</div>
-            <div class="feature-desc">Analisis eksploratif data dengan visualisasi tren dan distribusi</div>
-        </div>
+            <div class="stat-card" style="border-left-color: #2ecc71;">
+                <div class="stat-number">4</div>
+                <div class="stat-label">Kategori Pendidikan</div>
+            </div>
         """, unsafe_allow_html=True)
     
     with col3:
         st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">🎯</div>
-            <div class="feature-title">Clustering dengan DTW</div>
-            <div class="feature-desc">Jalankan TimeSeriesKMeans dan HAC dengan metric DTW secara bersamaan</div>
-        </div>
+            <div class="stat-card" style="border-left-color: #e67e22;">
+                <div class="stat-number">12</div>
+                <div class="stat-label">Fitur Karakteristik</div>
+            </div>
         """, unsafe_allow_html=True)
     
     with col4:
         st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📈</div>
-            <div class="feature-title">Komparasi & Visualisasi</div>
-            <div class="feature-desc">Bandingkan hasil kedua algoritma dengan visualisasi interaktif</div>
-        </div>
+            <div class="stat-card" style="border-left-color: #e74c3c;">
+                <div class="stat-number">2017-2025</div>
+                <div class="stat-label">Periode Analisis</div>
+            </div>
         """, unsafe_allow_html=True)
     
-    st.markdown("---")
-    
-    # Informasi Dataset
-    st.markdown('<h3 style="text-align: center; margin-bottom: 1rem;">📋 Informasi Dataset</h3>', unsafe_allow_html=True)
-    
-    col_info1, col_info2 = st.columns([1, 1])
-    
-    with col_info1:
-        st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
-            <h4>📌 Format Dataset</h4>
-            <ul>
-                <li><strong>nama_kabupaten_kota</strong> - Nama kabupaten/kota di Jawa Barat</li>
-                <li><strong>tahun</strong> - Tahun (2017 - 2025)</li>
-                <li><strong>pendidikan</strong> - Tingkat pendidikan (4 kategori)</li>
-                <li><strong>jumlah_pengangguran</strong> - Jumlah pengangguran</li>
-            </ul>
-            <br>
-            <h4>📊 Struktur Data</h4>
-            <ul>
-                <li><strong>27</strong> Kabupaten/Kota</li>
-                <li><strong>9</strong> Tahun (2017-2025)</li>
-                <li><strong>4</strong> Kategori Pendidikan</li>
-                <li><strong>~972</strong> Total Observasi</li>
-            </ul>
+    st.markdown("""
+        <div class="result-card">
+            <h4>📋 Langkah Analisis</h4>
+            <ol>
+                <li><strong>Upload Dataset</strong> - Unggah file data pengangguran (.xlsx)</li>
+                <li><strong>Exploratory Data Analysis</strong> - Eksplorasi karakteristik data</li>
+                <li><strong>Preprocessing & Karakteristik</strong> - Harmonisasi data dan pembentukan 12 fitur</li>
+                <li><strong>Clustering K-Medoids</strong> - Pengelompokan dengan K-Medoids (k=2 sampai k=10)</li>
+                <li><strong>Evaluasi & Hasil</strong> - Evaluasi dengan Silhouette Score dan analisis cluster</li>
+                <li><strong>Unduh Hasil</strong> - Download hasil analisis</li>
+            </ol>
         </div>
-        """, unsafe_allow_html=True)
-    
-    with col_info2:
-        st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
-            <h4>🎯 Perbandingan Algoritma</h4>
-            <ul>
-                <li><strong>TimeSeriesKMeans</strong> - K-Means berbasis DTW (Dynamic Time Warping)</li>
-                <li><strong>Hierarchical Agglomerative</strong> - HAC dengan DTW distance matrix</li>
-            </ul>
-            <br>
-            <h4>📈 Metrik Evaluasi</h4>
-            <ul>
-                <li><strong>Elbow Method</strong> - Inertia untuk optimal cluster</li>
-                <li><strong>Silhouette Score</strong> - Mengukur kualitas clustering</li>
-                <li><strong>Davies-Bouldin Index</strong> - Mengukur separasi antar cluster</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Quick Start
-    if st.session_state.data is None:
-        st.markdown("---")
-        st.markdown("""
-        <div style="text-align: center; padding: 1.5rem; background-color: #e8f4f8; border-radius: 10px;">
-            <h4>🚀 Mulai Analisis Sekarang</h4>
-            <p style="color: #5a6a7a;">Upload dataset Anda melalui menu <strong>Upload Dataset</strong> untuk memulai analisis clustering</p>
-        </div>
-        """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# ==================== UPLOAD DATASET ====================
-elif selected == "Upload Dataset":
+# ==========================================================
+# MENU: UPLOAD DATASET
+# ==========================================================
+elif selected == "📤 Upload Dataset":
     st.markdown('<div class="sub-header">📤 Upload Dataset</div>', unsafe_allow_html=True)
     
     st.markdown("""
         <div class="upload-area">
-            <h4>📁 Upload file dataset (.xlsx)</h4>
-            <p style="color: #7f8c8d;">Drag and drop file here</p>
-            <p style="color: #95a5a6; font-size: 0.9rem;">Limit 200MB per file - XLSX</p>
+            <h4>📁 Upload Dataset Pengangguran</h4>
+            <p style="color: #7f8c8d;">Format: .xlsx (Excel)</p>
+            <p style="color: #95a5a6; font-size: 0.85rem;">
+                Data bersumber dari Open Data Jawa Barat - Dinas Tenaga Kerja dan Transmigrasi
+            </p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -778,844 +409,552 @@ elif selected == "Upload Dataset":
     
     if uploaded_file is not None:
         try:
-            df = pd.read_excel(uploaded_file)
-            st.success(f"✅ File berhasil diupload! {len(df)} baris data")
+            data = pd.read_excel(uploaded_file)
+            st.session_state.data = data
             
-            # Preprocessing
-            with st.spinner("Sedang memproses data..."):
-                data, pendidikan_order = preprocess_data(df)
-                
-                # Simpan ke session state
-                st.session_state.data = data
-                st.session_state.pendidikan_order = pendidikan_order
+            st.success(f"✅ File berhasil diupload! {len(data)} baris data")
             
-            st.markdown("#### Preview Dataset Original")
-            st.dataframe(df.head(), use_container_width=True)
-            
-            st.markdown("#### Preview Data setelah Preprocessing")
-            st.dataframe(data.head(10), use_container_width=True)
-            
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2 = st.columns(2)
             with col1:
-                st.metric("Jumlah Wilayah", data['nama_kabupaten_kota'].nunique())
+                st.markdown("#### Preview Dataset")
+                st.dataframe(data.head(), use_container_width=True)
             with col2:
-                st.metric("Jumlah Pendidikan", data['pendidikan'].nunique())
-            with col3:
-                st.metric("Jumlah Tahun", len(data['tahun'].unique()))
-            with col4:
-                st.metric("Total Observasi", len(data))
+                st.markdown("#### Informasi Dataset")
+                st.write(f"**Jumlah Baris:** {len(data)}")
+                st.write(f"**Jumlah Kolom:** {len(data.columns)}")
+                st.write(f"**Kolom:** {', '.join(data.columns.tolist())}")
+                st.write(f"**Tahun:** {sorted(data['tahun'].unique())}")
+                st.write(f"**Kabupaten/Kota:** {data['nama_kabupaten_kota'].nunique()}")
             
-            # Tampilkan distribusi pendidikan per tahun
-            st.markdown("#### Distribusi Pendidikan per Tahun")
-            edu_year = data.groupby(['tahun', 'pendidikan']).size().unstack(fill_value=0)
-            st.dataframe(edu_year, use_container_width=True)
+            # Proses data otomatis
+            with st.spinner("Memproses data..."):
+                processed = process_data(data)
+                st.session_state.pivot_data = processed['pivot_data']
+                st.session_state.df_karakteristik = processed['df_karakteristik']
+                st.session_state.df_standardized = processed['df_standardized']
+                st.session_state.pendidikan_order = processed['pendidikan_order']
+                st.session_state.karakteristik_columns = processed['karakteristik_columns']
+            
+            st.success("✅ Data berhasil diproses! Siap melanjutkan ke tahap selanjutnya.")
             
         except Exception as e:
-            st.error(f"Error membaca file: {e}")
+            st.error(f"❌ Error membaca file: {e}")
     else:
-        st.info("📁 Silakan upload file dataset untuk memulai")
+        st.info("📌 Silakan upload file dataset untuk memulai analisis.")
         st.markdown("""
-            <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 5px; margin-top: 1rem;">
-                <h5>📋 Format Dataset yang Diharapkan</h5>
-                <ul>
-                    <li><strong>nama_kabupaten_kota</strong>: Nama kabupaten/kota</li>
-                    <li><strong>tahun</strong>: Tahun (2017-2025)</li>
-                    <li><strong>pendidikan</strong>: Tingkat pendidikan</li>
-                    <li><strong>jumlah_pengangguran</strong>: Jumlah pengangguran</li>
-                </ul>
-                <p style="color: #7f8c8d; font-size: 0.9rem;">⚠️ <strong>Catatan:</strong> Data pendidikan akan digabung menjadi 4 kategori: SD KE BAWAH, SMP, SMA, DIPLOMA/UNIVERSITAS</p>
+            <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 5px;">
+                <strong>Format data yang diharapkan:</strong><br>
+                Kolom: kode_provinsi, nama_provinsi, kode_kabupaten_kota, 
+                nama_kabupaten_kota, pendidikan, jumlah_pengangguran, tahun
             </div>
         """, unsafe_allow_html=True)
 
-# ==================== EXPLORATORY DATA ANALYSIS ====================
-elif selected == "Exploratory Data Analysis":
+# ==========================================================
+# MENU: EDA
+# ==========================================================
+elif selected == "📊 Exploratory Data Analysis":
     st.markdown('<div class="sub-header">📊 Exploratory Data Analysis</div>', unsafe_allow_html=True)
     
     if st.session_state.data is not None:
         data = st.session_state.data
         
-        # Statistik ringkasan
-        st.markdown("#### Ringkasan Data")
         col1, col2, col3, col4 = st.columns(4)
+        
         with col1:
-            st.metric("Jumlah Wilayah", data['nama_kabupaten_kota'].nunique())
+            st.metric("Jumlah Baris", f"{len(data):,}")
         with col2:
-            st.metric("Jumlah Pendidikan", data['pendidikan'].nunique())
+            st.metric("Kabupaten/Kota", data['nama_kabupaten_kota'].nunique())
         with col3:
-            st.metric("Jumlah Tahun", len(data['tahun'].unique()))
+            st.metric("Periode", f"{data['tahun'].min()} - {data['tahun'].max()}")
         with col4:
-            st.metric("Total Observasi", len(data))
+            st.metric("Kategori Pendidikan", data['pendidikan'].nunique())
         
-        # Statistik deskriptif lengkap
-        st.markdown("#### Statistik Deskriptif Jumlah Pengangguran")
+        st.markdown("#### Statistik Deskriptif")
         st.dataframe(data['jumlah_pengangguran'].describe(), use_container_width=True)
-        
-        st.markdown("#### Distribusi Jumlah Pengangguran per Tingkat Pendidikan")
-        edu_stats = data.groupby('pendidikan')['jumlah_pengangguran'].agg(['sum', 'mean', 'count']).sort_values('sum', ascending=False)
-        st.dataframe(edu_stats, use_container_width=True)
-        
-        # Cek missing value
-        st.markdown("#### Cek Missing Value")
-        missing_data = data.isnull().sum()
-        st.dataframe(pd.DataFrame({'Missing Value': missing_data}), use_container_width=True)
-        
-        if PLOTLY_AVAILABLE:
-            st.markdown("#### Visualisasi Data")
-            
-            tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                "Tren Pengangguran", 
-                "Distribusi per Tahun", 
-                "Heatmap Correlasi",
-                "Distribusi per Pendidikan",
-                "Statistik Lanjutan"
-            ])
-            
-            with tab1:
-                # Tren pengangguran per pendidikan
-                fig = px.line(
-                    data, x='tahun', y='jumlah_pengangguran', 
-                    color='pendidikan', 
-                    title='Tren Pengangguran Terbuka per Pendidikan (2017-2025)',
-                    markers=True
-                )
-                fig.update_layout(height=450, hovermode='x unified')
-                st.plotly_chart(fig, use_container_width=True)
-                st.info("💡 **Insight:** Grafik ini menunjukkan tren pengangguran per tingkat pendidikan dari tahun 2017-2025")
-            
-            with tab2:
-                # Boxplot distribusi per tahun
-                fig = px.box(
-                    data, x='tahun', y='jumlah_pengangguran',
-                    title='Distribusi Jumlah Pengangguran per Tahun'
-                )
-                fig.update_layout(height=450)
-                st.plotly_chart(fig, use_container_width=True)
-                st.info("💡 **Insight:** Boxplot menunjukkan variasi dan outlier data pengangguran per tahun")
-            
-            with tab3:
-                # Heatmap correlasi antar tahun
-                st.markdown("##### Heatmap Correlasi Antar Tahun")
-                pivot_corr = data.pivot_table(
-                    index=['nama_kabupaten_kota', 'pendidikan'],
-                    columns='tahun',
-                    values='jumlah_pengangguran',
-                    aggfunc='mean'
-                )
-                corr_matrix = pivot_corr.corr()
-                
-                fig = px.imshow(
-                    corr_matrix,
-                    title='Heatmap Correlasi Antar Tahun',
-                    color_continuous_scale='RdBu_r',
-                    aspect='auto',
-                    text_auto=True
-                )
-                fig.update_layout(height=450)
-                st.plotly_chart(fig, use_container_width=True)
-                st.info("💡 **Insight:** Heatmap menunjukkan korelasi antar tahun. Warna merah = korelasi positif tinggi")
-            
-            with tab4:
-                # Distribusi per pendidikan
-                st.markdown("##### Distribusi Jumlah Pengangguran per Pendidikan")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Bar chart
-                    edu_sum = data.groupby('pendidikan')['jumlah_pengangguran'].sum().reset_index()
-                    fig = px.bar(
-                        edu_sum, x='pendidikan', y='jumlah_pengangguran',
-                        title='Total Pengangguran per Tingkat Pendidikan',
-                        color='jumlah_pengangguran',
-                        color_continuous_scale='Blues'
-                    )
-                    fig.update_layout(height=350)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    # Boxplot per pendidikan
-                    fig = px.box(
-                        data, x='pendidikan', y='jumlah_pengangguran',
-                        title='Distribusi Pengangguran per Tingkat Pendidikan'
-                    )
-                    fig.update_layout(height=350)
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            with tab5:
-                # Statistik lanjutan
-                st.markdown("##### Statistik per Kelompok Pendidikan")
-                
-                stats_per_edu = data.groupby('pendidikan')['jumlah_pengangguran'].agg([
-                    ('Mean', 'mean'),
-                    ('Median', 'median'),
-                    ('Std Dev', 'std'),
-                    ('Min', 'min'),
-                    ('Max', 'max')
-                ]).round(2)
-                st.dataframe(stats_per_edu, use_container_width=True)
-                
-                st.markdown("##### Statistik per Tahun")
-                stats_per_year = data.groupby('tahun')['jumlah_pengangguran'].agg([
-                    ('Mean', 'mean'),
-                    ('Median', 'median'),
-                    ('Std Dev', 'std'),
-                    ('Min', 'min'),
-                    ('Max', 'max')
-                ]).round(2)
-                st.dataframe(stats_per_year, use_container_width=True)
-                
-                st.markdown("##### Distribusi Pendidikan per Tahun")
-                edu_year_dist = data.groupby(['tahun', 'pendidikan']).size().unstack(fill_value=0)
-                st.dataframe(edu_year_dist, use_container_width=True)
-        else:
-            st.warning("⚠️ Plotly tidak tersedia. Install dengan: pip install plotly")
-    else:
-        st.warning("⚠️ Silakan upload dataset terlebih dahulu di menu 'Upload Dataset'")
-
-# ==================== CLUSTERING ====================
-elif selected == "Clustering":
-    st.markdown('<div class="sub-header">🎯 Clustering dengan DTW</div>', unsafe_allow_html=True)
-    
-    if st.session_state.data is not None:
-        if not TSKLEARN_AVAILABLE:
-            st.error("⚠️ tslearn tidak tersedia. Install dengan: pip install tslearn")
-        else:
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                st.markdown("#### Pilih Mode Analisis")
-                algorithm = st.radio(
-                    "Pilih Mode",
-                    ["TimeSeriesKMeans Only", "Hierarchical Agglomerative Only", "Komparasi Kedua Algoritma"],
-                    index=0,
-                    horizontal=True
-                )
-            
-            with col2:
-                st.markdown("#### Jumlah Cluster (k)")
-                cluster_method = st.radio(
-                    "Metode pemilihan k",
-                    ["Otomatis (Rekomendasi)", "Manual"],
-                    index=0
-                )
-                if cluster_method == "Manual":
-                    k_value = st.slider("Jumlah Cluster", 2, 10, 3)
-            
-            if st.button("🚀 Jalankan Analisis", use_container_width=True):
-                with st.spinner("Sedang menganalisis data..."):
-                    # Jalankan kedua algoritma
-                    hasil_ts, X_ts, results_ts_df, results_hac_df, final_k_ts, final_k_hac, tahun_order = run_comparative_clustering(
-                        st.session_state.data, st.session_state.pendidikan_order
-                    )
-                    
-                    st.session_state.X_ts = X_ts
-                    st.session_state.tahun_order = tahun_order
-                    
-                    # Simpan hasil sesuai mode
-                    if algorithm in ["TimeSeriesKMeans Only", "Komparasi Kedua Algoritma"]:
-                        st.session_state.hasil_ts = hasil_ts[['nama_kabupaten_kota', 'pendidikan', 'cluster_ts']].copy()
-                        st.session_state.hasil_ts.rename(columns={'cluster_ts': 'cluster'}, inplace=True)
-                        st.session_state.results_ts_df = results_ts_df
-                        st.session_state.final_k_ts = final_k_ts
-                    
-                    if algorithm in ["Hierarchical Agglomerative Only", "Komparasi Kedua Algoritma"]:
-                        st.session_state.hasil_hac = hasil_ts[['nama_kabupaten_kota', 'pendidikan', 'cluster_hac']].copy()
-                        st.session_state.hasil_hac.rename(columns={'cluster_hac': 'cluster'}, inplace=True)
-                        st.session_state.results_hac_df = results_hac_df
-                        st.session_state.final_k_hac = final_k_hac
-                
-                st.success("✅ Analisis clustering selesai!")
-            
-            # Tampilkan hasil jika sudah ada - DIPISAHKAN
-            col_res1, col_res2 = st.columns(2)
-            
-            with col_res1:
-                if st.session_state.hasil_ts is not None:
-                    st.markdown("#### 🔵 TimeSeriesKMeans")
-                    st.markdown(f"**Cluster Terbaik (Voting):** {st.session_state.final_k_ts}")
-                    st.dataframe(st.session_state.results_ts_df, use_container_width=True)
-                    
-                    st.markdown("**Distribusi Cluster**")
-                    cluster_counts_ts = st.session_state.hasil_ts['cluster'].value_counts().sort_index()
-                    st.dataframe(cluster_counts_ts, use_container_width=True)
-                    
-                    if PLOTLY_AVAILABLE:
-                        fig = px.bar(
-                            x=cluster_counts_ts.index, y=cluster_counts_ts.values,
-                            title='Distribusi Cluster TimeSeriesKMeans',
-                            labels={'x': 'Cluster', 'y': 'Jumlah'},
-                            color_discrete_sequence=['#3498db']
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-            
-            with col_res2:
-                if st.session_state.hasil_hac is not None:
-                    st.markdown("#### 🔴 Hierarchical Agglomerative")
-                    st.markdown(f"**Cluster Terbaik (Voting):** {st.session_state.final_k_hac}")
-                    st.dataframe(st.session_state.results_hac_df, use_container_width=True)
-                    
-                    st.markdown("**Distribusi Cluster**")
-                    cluster_counts_hac = st.session_state.hasil_hac['cluster'].value_counts().sort_index()
-                    st.dataframe(cluster_counts_hac, use_container_width=True)
-                    
-                    if PLOTLY_AVAILABLE:
-                        fig = px.bar(
-                            x=cluster_counts_hac.index, y=cluster_counts_hac.values,
-                            title='Distribusi Cluster Hierarchical Agglomerative',
-                            labels={'x': 'Cluster', 'y': 'Jumlah'},
-                            color_discrete_sequence=['#e74c3c']
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("⚠️ Silakan upload dataset terlebih dahulu di menu 'Upload Dataset'")
-
-# ==================== KOMPARASI ALGORITMA ====================
-elif selected == "Komparasi Algoritma":
-    st.markdown('<div class="sub-header">🔍 Komparasi Algoritma</div>', unsafe_allow_html=True)
-    
-    if st.session_state.hasil_ts is not None and st.session_state.hasil_hac is not None:
-        st.markdown("#### Perbandingan Metrik")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            ts_silhouette = st.session_state.results_ts_df.loc[
-                st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts, 
-                'Silhouette Score (DTW)'
-            ].values[0]
-            ts_dbi = st.session_state.results_ts_df.loc[
-                st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts, 
-                'Davies-Bouldin Index'
-            ].values[0]
-            
-            st.markdown(f"""
-                <div class="result-card" style="border-left-color: #3498db;">
-                    <h4 style="color: #3498db;">🔵 TimeSeriesKMeans</h4>
-                    <p><strong>Cluster Terbaik:</strong> {st.session_state.final_k_ts}</p>
-                    <p><strong>Silhouette Score:</strong> <span class="metric-good">{ts_silhouette:.4f}</span></p>
-                    <p><strong>Davies-Bouldin Index:</strong> <span class="metric-bad">{ts_dbi:.4f}</span></p>
-                    <p><strong>Keunggulan:</strong></p>
-                    <ul>
-                        <li>Menggunakan prototype-based clustering</li>
-                        <li>Efisien untuk data berukuran besar</li>
-                        <li>Menghasilkan centroid untuk interpretasi</li>
-                        <li>Menggunakan DTW (Dynamic Time Warping)</li>
-                    </ul>
-                </div>
+            st.markdown("#### Distribusi per Pendidikan")
+            edu_dist = data.groupby('pendidikan')['jumlah_pengangguran'].sum().sort_values(ascending=False)
+            fig, ax = plt.subplots(figsize=(10, 5))
+            edu_dist.plot(kind='bar', ax=ax, color='steelblue')
+            ax.set_title('Total Pengangguran per Pendidikan')
+            ax.set_xlabel('Pendidikan')
+            ax.set_ylabel('Jumlah Pengangguran')
+            ax.tick_params(axis='x', rotation=45)
+            st.pyplot(fig)
+            plt.close()
+        
+        with col2:
+            st.markdown("#### Tren Pengangguran per Tahun")
+            year_data = data.groupby('tahun')['jumlah_pengangguran'].sum()
+            fig, ax = plt.subplots(figsize=(10, 5))
+            year_data.plot(kind='line', marker='o', ax=ax, color='green')
+            ax.set_title('Tren Total Pengangguran (2017-2025)')
+            ax.set_xlabel('Tahun')
+            ax.set_ylabel('Jumlah Pengangguran')
+            ax.grid(True, alpha=0.3)
+            st.pyplot(fig)
+            plt.close()
+        
+        st.markdown("#### Tren per Pendidikan")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        for edu in data['pendidikan'].unique():
+            edu_data = data[data['pendidikan'] == edu].groupby('tahun')['jumlah_pengangguran'].sum()
+            ax.plot(edu_data.index, edu_data.values, marker='o', label=edu, linewidth=2)
+        ax.set_title('Tren Pengangguran per Pendidikan (2017-2025)')
+        ax.set_xlabel('Tahun')
+        ax.set_ylabel('Jumlah Pengangguran')
+        ax.legend(loc='upper left')
+        ax.grid(True, alpha=0.3)
+        st.pyplot(fig)
+        plt.close()
+        
+    else:
+        st.warning("⚠️ Silakan upload dataset terlebih dahulu di menu 'Upload Dataset'.")
+
+# ==========================================================
+# MENU: PREPROCESSING & KARAKTERISTIK
+# ==========================================================
+elif selected == "⚙️ Preprocessing & Karakteristik":
+    st.markdown('<div class="sub-header">⚙️ Preprocessing & Pembentukan Karakteristik</div>', unsafe_allow_html=True)
+    
+    if st.session_state.df_karakteristik is not None:
+        
+        st.markdown("""
+            <div class="result-card">
+                <h4>📌 Harmonisasi Kategori Pendidikan</h4>
+                <p>Kategori pendidikan diharmonisasikan menjadi 4 kelompok:</p>
+                <ul>
+                    <li><strong>SD KE BAWAH</strong> - Tidak/Belum Sekolah, Tidak/Belum Tamat SD, SD</li>
+                    <li><strong>SMP</strong> - Sekolah Menengah Pertama</li>
+                    <li><strong>SMA/SLTA</strong> - SMA Umum dan SMA Kejuruan</li>
+                    <li><strong>PERGURUAN TINGGI</strong> - Diploma dan Universitas</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("#### Data Karakteristik Perkembangan")
+        st.markdown("""
+            Setiap kabupaten/kota direpresentasikan oleh <strong>12 fitur</strong>:
+            <br>3 karakteristik (Mean, Slope, CV) × 4 kategori pendidikan
+        """, unsafe_allow_html=True)
+        
+        st.dataframe(st.session_state.df_karakteristik, use_container_width=True)
+        
+        st.markdown("#### Data Setelah Standardisasi (RobustScaler)")
+        st.markdown("""
+            <div style="background-color: #e8f8e8; padding: 0.5rem 1rem; border-radius: 5px; margin-bottom: 0.5rem;">
+                ✅ Menggunakan <strong>RobustScaler</strong> - lebih tahan terhadap outlier
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.dataframe(st.session_state.df_standardized, use_container_width=True)
+        
+        # Visualisasi distribusi fitur
+        st.markdown("#### Distribusi Fitur Karakteristik")
+        
+        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+        cols = st.session_state.karakteristik_columns
+        
+        for i, col in enumerate(cols):
+            row, col_idx = i // 4, i % 4
+            ax = axes[row, col_idx]
+            st.session_state.df_karakteristik[col].hist(bins=15, ax=ax, color='steelblue', edgecolor='black')
+            ax.set_title(col, fontsize=9)
+            ax.set_xlabel('')
+            ax.set_ylabel('')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
+        
+    else:
+        st.warning("⚠️ Silakan upload dan proses dataset terlebih dahulu.")
+
+# ==========================================================
+# MENU: CLUSTERING K-MEDOIDS
+# ==========================================================
+elif selected == "🎯 Clustering K-Medoids":
+    st.markdown('<div class="sub-header">🎯 Clustering K-Medoids</div>', unsafe_allow_html=True)
+    
+    if st.session_state.df_standardized is not None:
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown("#### Konfigurasi Clustering")
+            st.markdown("""
+                <ul>
+                    <li><strong>Metode:</strong> K-Medoids</li>
+                    <li><strong>Distance Metric:</strong> Euclidean Distance</li>
+                    <li><strong>Algoritma:</strong> PAM (Partitioning Around Medoids)</li>
+                    <li><strong>Kandidat Cluster:</strong> k = 2 sampai 10</li>
+                </ul>
             """, unsafe_allow_html=True)
         
         with col2:
-            hac_silhouette = st.session_state.results_hac_df.loc[
-                st.session_state.results_hac_df['Jumlah Cluster'] == st.session_state.final_k_hac, 
-                'Silhouette Score (DTW)'
-            ].values[0]
-            hac_dbi = st.session_state.results_hac_df.loc[
-                st.session_state.results_hac_df['Jumlah Cluster'] == st.session_state.final_k_hac, 
-                'Davies-Bouldin Index'
-            ].values[0]
+            st.markdown("#### Jalankan Analisis")
+            if st.button("🚀 Jalankan Clustering", use_container_width=True):
+                with st.spinner("Sedang melakukan clustering dengan K-Medoids..."):
+                    results = run_clustering(
+                        st.session_state.df_standardized,
+                        range(2, 11)
+                    )
+                    st.session_state.clustering_results = results
+                    
+                    # Tentukan cluster terbaik
+                    best_k = max(results.keys(), key=lambda k: results[k]['silhouette'])
+                    st.session_state.best_k = best_k
+                    st.session_state.best_labels = results[best_k]['labels']
+                    st.session_state.best_medoids = results[best_k]['medoid_labels']
+                    
+                    # Buat evaluation_df
+                    evaluation_df = pd.DataFrame({
+                        'Jumlah Cluster': list(results.keys()),
+                        'Silhouette Score': [results[k]['silhouette'] for k in results.keys()],
+                        'Davies-Bouldin': [results[k]['dbi'] for k in results.keys()],
+                        'Calinski-Harabasz': [results[k]['ch'] for k in results.keys()],
+                        'Inertia': [results[k]['inertia'] for k in results.keys()]
+                    })
+                    st.session_state.evaluation_df = evaluation_df
+                    
+                    # Hitung cluster means
+                    df_karakteristik = st.session_state.df_karakteristik
+                    df_karakteristik['Cluster'] = results[best_k]['labels']
+                    cluster_means = df_karakteristik.groupby('Cluster')[
+                        st.session_state.karakteristik_columns
+                    ].mean()
+                    st.session_state.cluster_means = cluster_means
+                    
+                st.success(f"✅ Clustering selesai! Cluster terbaik: k={best_k}")
+        
+        if st.session_state.clustering_results is not None:
+            st.markdown("---")
+            st.markdown("#### Hasil Clustering")
             
+            results = st.session_state.clustering_results
+            
+            # Tabel evaluasi
+            eval_df = st.session_state.evaluation_df
+            st.dataframe(eval_df.style.highlight_max(subset=['Silhouette Score'], color='lightgreen')
+                                   .highlight_min(subset=['Davies-Bouldin'], color='lightcoral'),
+                         use_container_width=True)
+            
+            # Best cluster info
+            best_k = st.session_state.best_k
             st.markdown(f"""
-                <div class="result-card" style="border-left-color: #e74c3c;">
-                    <h4 style="color: #e74c3c;">🔴 Hierarchical Agglomerative</h4>
-                    <p><strong>Cluster Terbaik:</strong> {st.session_state.final_k_hac}</p>
-                    <p><strong>Silhouette Score:</strong> <span class="metric-good">{hac_silhouette:.4f}</span></p>
-                    <p><strong>Davies-Bouldin Index:</strong> <span class="metric-good">{hac_dbi:.4f}</span></p>
-                    <p><strong>Keunggulan:</strong></p>
-                    <ul>
-                        <li>Tidak perlu menentukan jumlah cluster awal</li>
-                        <li>Dapat divisualisasikan dengan dendrogram</li>
-                        <li>Menangkap struktur hierarki data</li>
-                        <li>Menggunakan DTW distance matrix</li>
-                    </ul>
+                <div class="result-card" style="border-left: 4px solid #27ae60;">
+                    <h4>🏆 Cluster Terbaik: k = {best_k}</h4>
+                    <p>
+                        <strong>Silhouette Score:</strong> {results[best_k]['silhouette']:.4f} &nbsp;|&nbsp;
+                        <strong>Davies-Bouldin:</strong> {results[best_k]['dbi']:.4f} &nbsp;|&nbsp;
+                        <strong>Calinski-Harabasz:</strong> {results[best_k]['ch']:.2f}
+                    </p>
+                    <p><strong>Medoid:</strong> {', '.join(results[best_k]['medoid_labels'])}</p>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # Detail cluster
+            st.markdown("#### Detail Anggota Cluster")
+            labels = results[best_k]['labels']
+            df_cluster = pd.DataFrame({
+                'Kabupaten_Kota': st.session_state.df_standardized.index,
+                'Cluster': labels
+            })
+            
+            for c in range(best_k):
+                members = df_cluster[df_cluster['Cluster'] == c]['Kabupaten_Kota'].tolist()
+                medoid = results[best_k]['medoid_labels'][c] if c < len(results[best_k]['medoid_labels']) else '-'
+                
+                with st.expander(f"📁 Cluster {c} - {len(members)} anggota | Medoid: {medoid}"):
+                    st.write(", ".join(members))
+    
+    else:
+        st.warning("⚠️ Silakan upload dan proses dataset terlebih dahulu.")
+
+# ==========================================================
+# MENU: EVALUASI & HASIL
+# ==========================================================
+elif selected == "📈 Evaluasi & Hasil":
+    st.markdown('<div class="sub-header">📈 Evaluasi & Hasil Analisis</div>', unsafe_allow_html=True)
+    
+    if st.session_state.clustering_results is not None:
         
-        if PLOTLY_AVAILABLE:
-            st.markdown("#### Visualisasi Perbandingan Metrik")
-            
-            metrics = ['Silhouette Score', 'Davies-Bouldin Index']
-            tskm_values = [ts_silhouette, ts_dbi]
-            hac_values = [hac_silhouette, hac_dbi]
-            
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                name='TimeSeriesKMeans',
-                x=metrics,
-                y=tskm_values,
-                marker_color='#3498db'
-            ))
-            fig.add_trace(go.Bar(
-                name='Hierarchical Agglomerative',
-                x=metrics,
-                y=hac_values,
-                marker_color='#e74c3c'
-            ))
-            
-            fig.update_layout(
-                title='Perbandingan Metrik Clustering',
-                barmode='group',
-                height=400,
-                yaxis_title='Nilai'
+        # 1. Grafik evaluasi
+        st.markdown("#### Visualisasi Evaluasi Clustering")
+        
+        eval_df = st.session_state.evaluation_df
+        best_k = st.session_state.best_k
+        
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        
+        # Silhouette Score
+        axes[0, 0].plot(eval_df['Jumlah Cluster'], eval_df['Silhouette Score'], 
+                       marker='o', linewidth=2, color='blue', markersize=8)
+        axes[0, 0].axvline(x=best_k, color='red', linestyle='--', linewidth=2, label=f'Best: k={best_k}')
+        axes[0, 0].set_xlabel('Jumlah Cluster (k)')
+        axes[0, 0].set_ylabel('Silhouette Score')
+        axes[0, 0].set_title('Silhouette Score')
+        axes[0, 0].legend()
+        axes[0, 0].grid(True, alpha=0.3)
+        
+        # Davies-Bouldin
+        axes[0, 1].plot(eval_df['Jumlah Cluster'], eval_df['Davies-Bouldin'], 
+                       marker='o', linewidth=2, color='green', markersize=8)
+        axes[0, 1].axvline(x=best_k, color='red', linestyle='--', linewidth=2, label=f'Best: k={best_k}')
+        axes[0, 1].set_xlabel('Jumlah Cluster (k)')
+        axes[0, 1].set_ylabel('Davies-Bouldin Index')
+        axes[0, 1].set_title('Davies-Bouldin (semakin kecil semakin baik)')
+        axes[0, 1].legend()
+        axes[0, 1].grid(True, alpha=0.3)
+        
+        # Calinski-Harabasz
+        axes[1, 0].plot(eval_df['Jumlah Cluster'], eval_df['Calinski-Harabasz'], 
+                       marker='o', linewidth=2, color='orange', markersize=8)
+        axes[1, 0].axvline(x=best_k, color='red', linestyle='--', linewidth=2, label=f'Best: k={best_k}')
+        axes[1, 0].set_xlabel('Jumlah Cluster (k)')
+        axes[1, 0].set_ylabel('Calinski-Harabasz Index')
+        axes[1, 0].set_title('Calinski-Harabasz (semakin besar semakin baik)')
+        axes[1, 0].legend()
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # Inertia (Elbow)
+        axes[1, 1].plot(eval_df['Jumlah Cluster'], eval_df['Inertia'], 
+                       marker='o', linewidth=2, color='purple', markersize=8)
+        axes[1, 1].set_xlabel('Jumlah Cluster (k)')
+        axes[1, 1].set_ylabel('Inertia')
+        axes[1, 1].set_title('Elbow Method (Inertia)')
+        axes[1, 1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
+        
+        # 2. PCA Visualization
+        st.markdown("#### Visualisasi Cluster dengan PCA")
+        
+        df_standardized = st.session_state.df_standardized
+        labels = st.session_state.best_labels
+        best_medoids = st.session_state.best_medoids
+        
+        pca = PCA(n_components=2, random_state=42)
+        X_pca = pca.fit_transform(df_standardized.values)
+        
+        df_pca = pd.DataFrame({
+            'PC1': X_pca[:, 0],
+            'PC2': X_pca[:, 1],
+            'Cluster': labels,
+            'Kabupaten_Kota': df_standardized.index
+        })
+        df_pca['Is_Medoid'] = df_pca['Kabupaten_Kota'].isin(best_medoids)
+        
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        scatter = ax.scatter(
+            df_pca['PC1'], 
+            df_pca['PC2'], 
+            c=df_pca['Cluster'], 
+            cmap='viridis', 
+            s=80, 
+            alpha=0.7
+        )
+        
+        # Tandai medoid
+        medoid_pca = df_pca[df_pca['Is_Medoid']]
+        ax.scatter(
+            medoid_pca['PC1'], 
+            medoid_pca['PC2'], 
+            c='red', 
+            s=200, 
+            marker='D', 
+            edgecolor='black', 
+            linewidth=2,
+            label='Medoid'
+        )
+        
+        # Label medoid
+        for idx, row in medoid_pca.iterrows():
+            ax.annotate(
+                row['Kabupaten_Kota'],
+                (row['PC1'], row['PC2']),
+                xytext=(10, 10),
+                textcoords='offset points',
+                fontsize=9,
+                fontweight='bold'
             )
-            st.plotly_chart(fig, use_container_width=True)
+        
+        ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)')
+        ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)')
+        ax.set_title(f'Visualisasi Cluster K-Medoids (k={st.session_state.best_k})')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        plt.colorbar(scatter, ax=ax, label='Cluster')
+        st.pyplot(fig)
+        plt.close()
+        
+        # 3. Profil Cluster
+        st.markdown("#### Profil Karakteristik per Cluster")
+        
+        cluster_means = st.session_state.cluster_means
+        
+        fig, ax = plt.subplots(figsize=(14, 8))
+        sns.heatmap(
+            cluster_means,
+            annot=True,
+            fmt='.2f',
+            cmap='RdYlBu_r',
+            center=0,
+            cbar_kws={'label': 'Nilai Karakteristik'},
+            ax=ax
+        )
+        ax.set_title(f'Profil Karakteristik per Cluster (k={st.session_state.best_k})')
+        ax.set_xlabel('Karakteristik')
+        ax.set_ylabel('Cluster')
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
+        
+        # 4. Interpretasi Cluster
+        st.markdown("#### Interpretasi Cluster")
+        
+        for c in range(st.session_state.best_k):
+            row = cluster_means.loc[c]
             
-            # Insight
-            better_ts = ts_silhouette > hac_silhouette and ts_dbi < hac_dbi
-            better_hac = hac_silhouette > ts_silhouette and hac_dbi < ts_dbi
+            # Identifikasi pendidikan dengan mean tertinggi
+            mean_cols = [col for col in st.session_state.karakteristik_columns if col.startswith('Mean_')]
+            highest_mean = row[mean_cols].idxmax().replace('Mean_', '')
             
-            if better_ts:
-                st.info(f"""
-                💡 **Analisis Komparasi:**
-                - **Silhouette Score:** TimeSeriesKMeans ({ts_silhouette:.4f}) lebih baik dari HAC ({hac_silhouette:.4f})
-                - **Davies-Bouldin Index:** TimeSeriesKMeans ({ts_dbi:.4f}) lebih baik dari HAC ({hac_dbi:.4f})
-                - **Kesimpulan:** TimeSeriesKMeans memberikan hasil clustering yang lebih baik untuk dataset ini
-                """)
-            elif better_hac:
-                st.info(f"""
-                💡 **Analisis Komparasi:**
-                - **Silhouette Score:** HAC ({hac_silhouette:.4f}) lebih baik dari TimeSeriesKMeans ({ts_silhouette:.4f})
-                - **Davies-Bouldin Index:** HAC ({hac_dbi:.4f}) lebih baik dari TimeSeriesKMeans ({ts_dbi:.4f})
-                - **Kesimpulan:** Hierarchical Agglomerative Clustering memberikan hasil yang lebih baik untuk dataset ini
-                """)
-            else:
-                st.info(f"""
-                💡 **Analisis Komparasi:**
-                - **Silhouette Score:** TimeSeriesKMeans ({ts_silhouette:.4f}) vs HAC ({hac_silhouette:.4f})
-                - **Davies-Bouldin Index:** TimeSeriesKMeans ({ts_dbi:.4f}) vs HAC ({hac_dbi:.4f})
-                - **Kesimpulan:** Kedua algoritma memiliki performa yang kompetitif, pilih berdasarkan kebutuhan analisis
-                """)
-    else:
-        st.warning("⚠️ Silakan jalankan analisis clustering terlebih dahulu di menu 'Clustering'")
-
-# ==================== VISUALISASI ====================
-elif selected == "Visualisasi":
-    st.markdown('<div class="sub-header">📈 Visualisasi</div>', unsafe_allow_html=True)
+            # Identifikasi pendidikan dengan slope tertinggi
+            slope_cols = [col for col in st.session_state.karakteristik_columns if col.startswith('Slope_')]
+            highest_slope = row[slope_cols].idxmax().replace('Slope_', '')
+            
+            with st.expander(f"📊 Cluster {c}"):
+                st.write(f"**Pendidikan dengan pengangguran tertinggi:** {highest_mean}")
+                st.write(f"**Pendidikan dengan pertumbuhan tertinggi:** {highest_slope}")
+                
+                # Tampilkan nilai karakteristik
+                st.write("**Nilai Karakteristik:**")
+                st.dataframe(row.to_frame().T, use_container_width=True)
     
-    if st.session_state.X_ts is not None:
-        if PLOTLY_AVAILABLE:
-            tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                "Elbow & Metrik", 
-                "PCA Visualization", 
-                "Pola Time Series",
-                "Heatmap Clustering", 
-                "Perbandingan"
-            ])
-            
-            with tab1:
-                st.markdown("#### Elbow Method dan Metrik Evaluasi")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.session_state.results_ts_df is not None:
-                        # Elbow Curve TimeSeriesKMeans
-                        fig = px.line(
-                            st.session_state.results_ts_df, x='Jumlah Cluster', y='Inertia',
-                            markers=True,
-                            title='Elbow Curve - TimeSeriesKMeans'
-                        )
-                        fig.add_vline(
-                            x=st.session_state.final_k_ts, line_dash="dash", line_color="blue",
-                            annotation_text=f"Optimal k={st.session_state.final_k_ts}"
-                        )
-                        fig.update_layout(height=350)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    st.markdown("##### 🔵 TimeSeriesKMeans")
-                    if st.session_state.results_ts_df is not None:
-                        col1a, col1b, col1c = st.columns(3)
-                        with col1a:
-                            st.metric(
-                                "Silhouette Score", 
-                                f"{st.session_state.results_ts_df.loc[st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts, 'Silhouette Score (DTW)'].values[0]:.4f}"
-                            )
-                        with col1b:
-                            st.metric(
-                                "Davies-Bouldin Index", 
-                                f"{st.session_state.results_ts_df.loc[st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts, 'Davies-Bouldin Index'].values[0]:.4f}"
-                            )
-                        with col1c:
-                            st.metric("Cluster Optimal", st.session_state.final_k_ts)
-                
-                with col2:
-                    if st.session_state.results_hac_df is not None:
-                        st.markdown("##### 🔴 Hierarchical Agglomerative")
-                        col2a, col2b, col2c = st.columns(3)
-                        with col2a:
-                            st.metric(
-                                "Silhouette Score", 
-                                f"{st.session_state.results_hac_df.loc[st.session_state.results_hac_df['Jumlah Cluster'] == st.session_state.final_k_hac, 'Silhouette Score (DTW)'].values[0]:.4f}"
-                            )
-                        with col2b:
-                            st.metric(
-                                "Davies-Bouldin Index", 
-                                f"{st.session_state.results_hac_df.loc[st.session_state.results_hac_df['Jumlah Cluster'] == st.session_state.final_k_hac, 'Davies-Bouldin Index'].values[0]:.4f}"
-                            )
-                        with col2c:
-                            st.metric("Cluster Optimal", st.session_state.final_k_hac)
-            
-            with tab2:
-                st.markdown("#### PCA Visualization")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.session_state.hasil_ts is not None:
-                        # PCA untuk TimeSeriesKMeans
-                        X_flat = st.session_state.X_ts.reshape(st.session_state.X_ts.shape[0], -1)
-                        pca = PCA(n_components=2, random_state=42)
-                        X_pca = pca.fit_transform(X_flat)
-                        df_pca = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
-                        df_pca['Cluster'] = st.session_state.hasil_ts['cluster'].values
-                        df_pca['Kab/Kota'] = st.session_state.hasil_ts['nama_kabupaten_kota'].values
-                        df_pca['Pendidikan'] = st.session_state.hasil_ts['pendidikan'].values
-                        
-                        fig = px.scatter(
-                            df_pca, x='PC1', y='PC2', color='Cluster',
-                            hover_data=['Kab/Kota', 'Pendidikan'],
-                            title=f'🔵 TimeSeriesKMeans (k={st.session_state.final_k_ts})',
-                            color_continuous_scale='Viridis',
-                            size_max=15
-                        )
-                        fig.update_layout(height=400)
-                        st.plotly_chart(fig, use_container_width=True)
-                        st.caption(f"PC1: {pca.explained_variance_ratio_[0]*100:.1f}% | PC2: {pca.explained_variance_ratio_[1]*100:.1f}%")
-                
-                with col2:
-                    if st.session_state.hasil_hac is not None:
-                        # PCA untuk HAC
-                        X_flat = st.session_state.X_ts.reshape(st.session_state.X_ts.shape[0], -1)
-                        pca = PCA(n_components=2, random_state=42)
-                        X_pca = pca.fit_transform(X_flat)
-                        df_pca = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
-                        df_pca['Cluster'] = st.session_state.hasil_hac['cluster'].values
-                        df_pca['Kab/Kota'] = st.session_state.hasil_hac['nama_kabupaten_kota'].values
-                        df_pca['Pendidikan'] = st.session_state.hasil_hac['pendidikan'].values
-                        
-                        fig = px.scatter(
-                            df_pca, x='PC1', y='PC2', color='Cluster',
-                            hover_data=['Kab/Kota', 'Pendidikan'],
-                            title=f'🔴 Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
-                            color_continuous_scale='Plasma',
-                            size_max=15
-                        )
-                        fig.update_layout(height=400)
-                        st.plotly_chart(fig, use_container_width=True)
-                        st.caption(f"PC1: {pca.explained_variance_ratio_[0]*100:.1f}% | PC2: {pca.explained_variance_ratio_[1]*100:.1f}%")
-            
-            with tab3:
-                st.markdown("#### Pola Time Series per Cluster")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.session_state.hasil_ts is not None and st.session_state.tahun_order is not None:
-                        st.markdown("##### 🔵 TimeSeriesKMeans")
-                        fig = go.Figure()
-                        for c in range(st.session_state.final_k_ts):
-                            idx = np.where(st.session_state.hasil_ts['cluster'] == c)[0]
-                            if len(idx) > 0:
-                                mean_pattern = st.session_state.X_ts[idx].mean(axis=0).ravel()
-                                mean_reshaped = mean_pattern.reshape(len(st.session_state.tahun_order), -1)
-                                mean_per_year = mean_reshaped.mean(axis=1)
-                                fig.add_trace(go.Scatter(
-                                    x=st.session_state.tahun_order,
-                                    y=mean_per_year,
-                                    mode='lines+markers',
-                                    name=f'Cluster {c}',
-                                    line=dict(width=3)
-                                ))
-                        
-                        fig.update_layout(
-                            title=f'Rata-rata Pola Deret Waktu per Cluster',
-                            xaxis_title='Tahun',
-                            yaxis_title='Jumlah Pengangguran (Normalized)',
-                            height=350,
-                            hovermode='x unified'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    if st.session_state.hasil_hac is not None and st.session_state.tahun_order is not None:
-                        st.markdown("##### 🔴 Hierarchical Agglomerative")
-                        fig = go.Figure()
-                        for c in range(st.session_state.final_k_hac):
-                            idx = np.where(st.session_state.hasil_hac['cluster'] == c)[0]
-                            if len(idx) > 0:
-                                mean_pattern = st.session_state.X_ts[idx].mean(axis=0).ravel()
-                                mean_reshaped = mean_pattern.reshape(len(st.session_state.tahun_order), -1)
-                                mean_per_year = mean_reshaped.mean(axis=1)
-                                fig.add_trace(go.Scatter(
-                                    x=st.session_state.tahun_order,
-                                    y=mean_per_year,
-                                    mode='lines+markers',
-                                    name=f'Cluster {c}',
-                                    line=dict(width=3)
-                                ))
-                        
-                        fig.update_layout(
-                            title=f'Rata-rata Pola Deret Waktu per Cluster',
-                            xaxis_title='Tahun',
-                            yaxis_title='Jumlah Pengangguran (Normalized)',
-                            height=350,
-                            hovermode='x unified'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                
-                st.info("💡 **Insight:** Setiap cluster menunjukkan pola waktu yang berbeda - menurun, stabil, atau meningkat")
-            
-            with tab4:
-                st.markdown("#### Heatmap Clustering")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.session_state.hasil_ts is not None:
-                        st.markdown("##### 🔵 TimeSeriesKMeans")
-                        pivot_cluster_ts = st.session_state.hasil_ts.pivot_table(
-                            index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
-                        )
-                        
-                        fig = px.imshow(
-                            pivot_cluster_ts,
-                            title=f'TimeSeriesKMeans (k={st.session_state.final_k_ts})',
-                            color_continuous_scale='Viridis',
-                            aspect='auto'
-                        )
-                        fig.update_layout(height=350)
-                        st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    if st.session_state.hasil_hac is not None:
-                        st.markdown("##### 🔴 Hierarchical Agglomerative")
-                        pivot_cluster_hac = st.session_state.hasil_hac.pivot_table(
-                            index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
-                        )
-                        
-                        fig = px.imshow(
-                            pivot_cluster_hac,
-                            title=f'Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
-                            color_continuous_scale='Plasma',
-                            aspect='auto'
-                        )
-                        fig.update_layout(height=350)
-                        st.plotly_chart(fig, use_container_width=True)
-            
-            with tab5:
-                st.markdown("#### Perbandingan Visualisasi")
-                
-                if st.session_state.hasil_ts is not None and st.session_state.hasil_hac is not None:
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Distribusi Cluster TimeSeriesKMeans
-                        ts_counts = st.session_state.hasil_ts['cluster'].value_counts().sort_index()
-                        fig = px.pie(
-                            values=ts_counts.values, names=ts_counts.index,
-                            title=f'🔵 TimeSeriesKMeans (k={st.session_state.final_k_ts})',
-                            color_discrete_sequence=px.colors.sequential.Viridis
-                        )
-                        fig.update_layout(height=350)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    with col2:
-                        # Distribusi Cluster HAC
-                        hac_counts = st.session_state.hasil_hac['cluster'].value_counts().sort_index()
-                        fig = px.pie(
-                            values=hac_counts.values, names=hac_counts.index,
-                            title=f'🔴 Hierarchical Agglomerative (k={st.session_state.final_k_hac})',
-                            color_discrete_sequence=px.colors.sequential.Plasma
-                        )
-                        fig.update_layout(height=350)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Perbandingan Heatmap
-                    st.markdown("##### Perbandingan Cluster per Kabupaten/Kota")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        pivot_ts = st.session_state.hasil_ts.pivot_table(
-                            index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
-                        )
-                        fig = px.imshow(
-                            pivot_ts,
-                            title='🔵 TimeSeriesKMeans',
-                            color_continuous_scale='Viridis',
-                            aspect='auto'
-                        )
-                        fig.update_layout(height=300)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    with col2:
-                        pivot_hac = st.session_state.hasil_hac.pivot_table(
-                            index='nama_kabupaten_kota', columns='pendidikan', values='cluster'
-                        )
-                        fig = px.imshow(
-                            pivot_hac,
-                            title='🔴 Hierarchical Agglomerative',
-                            color_continuous_scale='Plasma',
-                            aspect='auto'
-                        )
-                        fig.update_layout(height=300)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    st.info("""
-                    💡 **Perbandingan Visual:**
-                    - **🔵 TimeSeriesKMeans** mengelompokkan berdasarkan prototype centroid dengan DTW
-                    - **🔴 Hierarchical Agglomerative** mengelompokkan berdasarkan distance matrix DTW
-                    - Perhatikan perbedaan jumlah cluster dan distribusi antar cluster
-                    """)
-        else:
-            st.warning("⚠️ Plotly tidak tersedia. Install dengan: pip install plotly")
     else:
-        st.warning("⚠️ Silakan upload dataset dan jalankan analisis terlebih dahulu")
+        st.warning("⚠️ Silakan jalankan clustering terlebih dahulu.")
 
-# ==================== UNDUH HASIL ====================
-elif selected == "Unduh Hasil":
-    st.markdown('<div class="sub-header">📥 Unduh Hasil</div>', unsafe_allow_html=True)
+# ==========================================================
+# MENU: UNDUH HASIL
+# ==========================================================
+elif selected == "📥 Unduh Hasil":
+    st.markdown('<div class="sub-header">📥 Unduh Hasil Analisis</div>', unsafe_allow_html=True)
     
-    if st.session_state.hasil_ts is not None:
+    if st.session_state.clustering_results is not None:
+        
         st.markdown("""
-            <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px; text-align: center;">
+            <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; text-align: center; margin-bottom: 1.5rem;">
                 <h4>📊 Hasil siap untuk diunduh</h4>
-                <p style="color: #7f8c8d;">Hasil analisis clustering dapat diunduh dalam berbagai format</p>
+                <p style="color: #7f8c8d;">Unduh hasil clustering dalam berbagai format</p>
             </div>
         """, unsafe_allow_html=True)
+        
+        # Buat data hasil
+        df_standardized = st.session_state.df_standardized
+        labels = st.session_state.best_labels
+        best_medoids = st.session_state.best_medoids
+        best_k = st.session_state.best_k
+        
+        df_hasil = pd.DataFrame({
+            'Kabupaten_Kota': df_standardized.index,
+            'Cluster': labels,
+            'Is_Medoid': df_standardized.index.isin(best_medoids)
+        })
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.session_state.hasil_ts is not None:
-                csv_ts = st.session_state.hasil_ts.to_csv(index=False)
-                st.download_button(
-                    label="🔵 Unduh Hasil TimeSeriesKMeans (CSV)",
-                    data=csv_ts,
-                    file_name="hasil_timeserieskmeans.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
+            csv = df_hasil.to_csv(index=False)
+            st.download_button(
+                label="📊 Unduh CSV",
+                data=csv,
+                file_name="hasil_clustering_kmedoids.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
         
         with col2:
-            if st.session_state.hasil_hac is not None:
-                csv_hac = st.session_state.hasil_hac.to_csv(index=False)
-                st.download_button(
-                    label="🔴 Unduh Hasil HAC (CSV)",
-                    data=csv_hac,
-                    file_name="hasil_hac.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
+            # Preview
+            st.markdown("#### Preview Hasil")
+            st.dataframe(df_hasil, use_container_width=True)
         
         with col3:
-            if st.session_state.results_ts_df is not None and st.session_state.results_hac_df is not None:
-                summary_data = {
-                    'Algoritma': ['TimeSeriesKMeans', 'Hierarchical Agglomerative'],
-                    'Cluster Terbaik': [st.session_state.final_k_ts, st.session_state.final_k_hac],
-                    'Silhouette Score': [
-                        st.session_state.results_ts_df.loc[
-                            st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts,
-                            'Silhouette Score (DTW)'
-                        ].values[0],
-                        st.session_state.results_hac_df.loc[
-                            st.session_state.results_hac_df['Jumlah Cluster'] == st.session_state.final_k_hac,
-                            'Silhouette Score (DTW)'
-                        ].values[0]
-                    ],
-                    'Davies-Bouldin Index': [
-                        st.session_state.results_ts_df.loc[
-                            st.session_state.results_ts_df['Jumlah Cluster'] == st.session_state.final_k_ts,
-                            'Davies-Bouldin Index'
-                        ].values[0],
-                        st.session_state.results_hac_df.loc[
-                            st.session_state.results_hac_df['Jumlah Cluster'] == st.session_state.final_k_hac,
-                            'Davies-Bouldin Index'
-                        ].values[0]
-                    ]
-                }
-                
-                summary_df = pd.DataFrame(summary_data)
-                csv_summary = summary_df.to_csv(index=False)
-                st.download_button(
-                    label="📊 Unduh Ringkasan Hasil (CSV)",
-                    data=csv_summary,
-                    file_name="hasil_ringkasan.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-        
-        st.markdown("#### 🔵 Preview Hasil TimeSeriesKMeans")
-        st.dataframe(st.session_state.hasil_ts.head(10), use_container_width=True)
-        
-        if st.session_state.hasil_hac is not None:
-            st.markdown("#### 🔴 Preview Hasil HAC")
-            st.dataframe(st.session_state.hasil_hac.head(10), use_container_width=True)
+            # Ringkasan
+            st.markdown("#### Ringkasan")
+            st.write(f"**Jumlah Cluster:** {best_k}")
+            st.write(f"**Medoid:** {', '.join(best_medoids)}")
+            st.write("**Distribusi:**")
+            for c in range(best_k):
+                count = (labels == c).sum()
+                st.write(f"  - Cluster {c}: {count} anggota")
+    
     else:
-        st.warning("⚠️ Belum ada hasil analisis. Silakan jalankan analisis di menu 'Clustering'")
+        st.warning("⚠️ Silakan jalankan clustering terlebih dahulu.")
 
-# ==================== TENTANG APLIKASI ====================
-elif selected == "Tentang Aplikasi":
+# ==========================================================
+# MENU: TENTANG
+# ==========================================================
+elif selected == "ℹ️ Tentang":
     st.markdown('<div class="sub-header">ℹ️ Tentang Aplikasi</div>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("""
-            <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px;">
-                <h3>📊 Sistem Komparasi Clustering Pengangguran Terbuka</h3>
-                <p><strong>Versi:</strong> 3.0.0</p>
-                <p><strong>Tanggal Rilis:</strong> 2026</p>
-                <hr>
-                <h4>🎯 Tujuan</h4>
-                <p>Membantu analisis dan perbandingan hasil clustering antara algoritma 
-                <strong>TimeSeriesKMeans</strong> dan <strong>Hierarchical Agglomerative Clustering (HAC)</strong> 
-                untuk data pengangguran terbuka di Jawa Barat.</p>
-                <hr>
-                <h4>📚 Teknologi yang Digunakan</h4>
-                <ul>
-                    <li><strong>Framework:</strong> Streamlit</li>
-                    <li><strong>Machine Learning:</strong> Scikit-learn, Tslearn</li>
-                    <li><strong>Visualisasi:</strong> Plotly, Matplotlib, Seaborn</li>
-                    <li><strong>Data Processing:</strong> Pandas, NumPy</li>
-                </ul>
-                <hr>
-                <h4>📋 Metodologi</h4>
-                <ol>
-                    <li><strong>Preprocessing:</strong> Penggabungan pendidikan menjadi 4 kategori, filtering tahun 2017-2025</li>
-                    <li><strong>Normalisasi:</strong> TimeSeriesScalerMinMax untuk kedua algoritma</li>
-                    <li><strong>Clustering:</strong> TimeSeriesKMeans dan HAC dengan metric DTW</li>
-                    <li><strong>Evaluasi:</strong> Elbow Method, Silhouette Score, Davies-Bouldin Index</li>
-                    <li><strong>Komparasi:</strong> Perbandingan hasil kedua algoritma</li>
-                </ol>
-                <hr>
-                <h4>📊 Perbedaan Algoritma</h4>
-                <ul>
-                    <li><strong>🔵 TimeSeriesKMeans:</strong> Prototype-based, efisien untuk data besar</li>
-                    <li><strong>🔴 HAC:</strong> Hierarchical, tidak perlu menentukan k awal</li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-            <div style="background-color: #e8f4f8; padding: 2rem; border-radius: 10px;">
-                <h4>📞 Kontak</h4>
-                <p><strong>Email:</strong> support@clustering-app.com</p>
-                <p><strong>Website:</strong> www.clustering-app.com</p>
-                <hr>
-                <h4>🔗 Link Terkait</h4>
-                <ul>
-                    <li><a href="#">Dokumentasi</a></li>
-                    <li><a href="#">GitHub Repository</a></li>
-                    <li><a href="#">Laporan Akhir</a></li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
+    st.markdown("""
+        <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px;">
+            <h3>📊 Sistem Analisis Pengelompokan Kabupaten/Kota di Jawa Barat</h3>
+            <p><strong>Versi:</strong> 1.0.0</p>
+            <p><strong>Tahun:</strong> 2026</p>
+            <hr>
+            
+            <h4>🎯 Tujuan</h4>
+            <p>
+                Mengelompokkan 27 kabupaten/kota di Provinsi Jawa Barat berdasarkan 
+                karakteristik perkembangan jumlah pengangguran terbuka menurut tingkat pendidikan 
+                menggunakan metode <strong>K-Medoids</strong>.
+            </p>
+            <hr>
+            
+            <h4>📚 Metodologi</h4>
+            <ul>
+                <li><strong>Data:</strong> Open Data Jawa Barat (2017-2025)</li>
+                <li><strong>Karakteristik:</strong> Mean, Slope, Coefficient of Variation</li>
+                <li><strong>Standardisasi:</strong> RobustScaler (tahan outlier)</li>
+                <li><strong>Clustering:</strong> K-Medoids dengan Euclidean Distance</li>
+                <li><strong>Evaluasi:</strong> Silhouette Score, Davies-Bouldin Index</li>
+            </ul>
+            <hr>
+            
+            <h4>👤 Identitas</h4>
+            <ul>
+                <li><strong>Nama:</strong> Rakha Rizky Mahendra</li>
+                <li><strong>NPM:</strong> 21083010013</li>
+                <li><strong>Program Studi:</strong> Sains Data</li>
+                <li><strong>Universitas:</strong> UPN Veteran Jawa Timur</li>
+            </ul>
+            <hr>
+            
+            <h4>📦 Teknologi</h4>
+            <ul>
+                <li><strong>Framework:</strong> Streamlit</li>
+                <li><strong>Machine Learning:</strong> Scikit-learn (KMedoids)</li>
+                <li><strong>Visualisasi:</strong> Matplotlib, Seaborn</li>
+                <li><strong>Data Processing:</strong> Pandas, NumPy</li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
 
-# ==================== FOOTER ====================
+# ==========================================================
+# FOOTER
+# ==========================================================
 st.markdown("---")
 st.markdown("""
     <div class="footer">
-        © 2026 Sistem Komparasi Clustering Pengangguran Terbuka | TimeSeriesKMeans vs Hierarchical Agglomerative Clustering
+        © 2026 Rakha Rizky Mahendra - Sains Data UPN Veteran Jawa Timur
     </div>
 """, unsafe_allow_html=True)
