@@ -936,49 +936,76 @@ elif st.session_state.page == "Tentang":
     st.markdown('<div class="sub-header">ℹ️ Tentang Aplikasi</div>', unsafe_allow_html=True)
     
     st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px;">
-            <h3>📊 Sistem Analisis Pengelompokan Kabupaten/Kota di Jawa Barat</h3>
+        <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem;">
+            <h3 style="color: #1f77b4;">📊 Sistem Analisis Pengelompokan Kabupaten/Kota di Jawa Barat</h3>
             <p><strong>Versi:</strong> 1.0.0</p>
             <p><strong>Tahun:</strong> 2026</p>
-            <hr>
-            
-            <h4>🎯 Tujuan</h4>
-            <p>
-                Mengelompokkan 27 kabupaten/kota di Provinsi Jawa Barat berdasarkan 
-                karakteristik perkembangan jumlah pengangguran terbuka menurut tingkat pendidikan 
-                menggunakan metode <strong>K-Medoids</strong>.
-            </p>
-            <hr>
-            
-            <h4>📚 Metodologi</h4>
-            <ul>
-                <li><strong>Data:</strong> Open Data Jawa Barat (2017-2025)</li>
-                <li><strong>Karakteristik:</strong> Mean, Slope, Coefficient of Variation</li>
-                <li><strong>Standardisasi:</strong> RobustScaler (tahan outlier)</li>
-                <li><strong>Clustering:</strong> K-Medoids dengan Euclidean Distance</li>
-                <li><strong>Evaluasi:</strong> Silhouette Score, Davies-Bouldin Index</li>
-            </ul>
-            <hr>
-            
-            <h4>👤 Identitas</h4>
-            <ul>
-                <li><strong>Nama:</strong> Rakha Rizky Mahendra</li>
-                <li><strong>NPM:</strong> 21083010013</li>
-                <li><strong>Program Studi:</strong> Sains Data</li>
-                <li><strong>Universitas:</strong> UPN Veteran Jawa Timur</li>
-            </ul>
-            <hr>
-            
-            <h4>📦 Teknologi</h4>
-            <ul>
-                <li><strong>Framework:</strong> Streamlit</li>
-                <li><strong>Machine Learning:</strong> Scikit-learn (KMedoids Manual)</li>
-                <li><strong>Visualisasi:</strong> Matplotlib, Seaborn</li>
-                <li><strong>Data Processing:</strong> Pandas, NumPy</li>
-            </ul>
         </div>
     """, unsafe_allow_html=True)
-
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+            <div style="background-color: white; padding: 1.2rem; border-radius: 10px; 
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 1rem;">
+                <h4 style="color: #2ecc71;">🎯 Tujuan</h4>
+                <p style="text-align: justify; color: #2c3e50;">
+                    Mengelompokkan 27 kabupaten/kota di Provinsi Jawa Barat berdasarkan 
+                    karakteristik perkembangan jumlah pengangguran terbuka menurut tingkat pendidikan 
+                    menggunakan metode <strong>K-Medoids</strong>.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+            <div style="background-color: white; padding: 1.2rem; border-radius: 10px; 
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 1rem;">
+                <h4 style="color: #3498db;">🔍 Identitas</h4>
+                <ul style="color: #2c3e50; padding-left: 20px;">
+                    <li><strong>Nama:</strong> Rakha Rizky Mahendra</li>
+                    <li><strong>NPM:</strong> 21083010013</li>
+                    <li><strong>Program Studi:</strong> Sains Data</li>
+                    <li><strong>Universitas:</strong> UPN Veteran Jawa Timur</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+            <div style="background-color: white; padding: 1.2rem; border-radius: 10px; 
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 1rem;">
+                <h4 style="color: #e67e22;">📊 Metodologi</h4>
+                <ul style="color: #2c3e50; padding-left: 20px;">
+                    <li><strong>Data:</strong> Open Data Jawa Barat (2017-2025)</li>
+                    <li><strong>Karakteristik:</strong> Mean, Slope, Coefficient of Variation</li>
+                    <li><strong>Standardisasi:</strong> RobustScaler (tahan outlier)</li>
+                    <li><strong>Clustering:</strong> K-Medoids dengan Euclidean Distance</li>
+                    <li><strong>Evaluasi:</strong> Silhouette Score, Davies-Bouldin Index</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+            <div style="background-color: white; padding: 1.2rem; border-radius: 10px; 
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 1rem;">
+                <h4 style="color: #9b59b6;">📦 Teknologi</h4>
+                <ul style="color: #2c3e50; padding-left: 20px;">
+                    <li><strong>Framework:</strong> Streamlit</li>
+                    <li><strong>Machine Learning:</strong> Scikit-learn</li>
+                    <li><strong>Visualisasi:</strong> Matplotlib, Seaborn</li>
+                    <li><strong>Data Processing:</strong> Pandas, NumPy</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+        <div style="text-align: center; color: #7f8c8d; padding: 1rem 0;">
+            © 2026 Rakha Rizky Mahendra - Sains Data UPN Veteran Jawa Timur
+        </div>
+    """, unsafe_allow_html=True)
 # ==========================================================
 # FOOTER
 # ==========================================================
